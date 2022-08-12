@@ -27,6 +27,7 @@ struct piece_id{
 
 // PIECES_BOARD
 
+#define PIECES_BOARD_DEAD 64
 struct pieces_board{
     // 0-63 in board, 64 dead
     // all alive pieces must be at the begining of the array
@@ -67,11 +68,25 @@ struct squares_board{
     int is_white[64]; // if piece[i] == none, whatever is ok
 };
 
+struct previous_moves{
+    int moved_king;
+    int moved_rook_near;
+    int moved_rook_far;
+};
+
 struct board{
     struct pieces_board white_pieces;
     struct pieces_board black_pieces;
     struct squares_board squares;
+    struct previous_moves white_moves;
+    struct previous_moves black_moves;
 };
+
+struct board* copy_board(struct board* b){
+    struct board* nb = (struct board*) malloc(sizeof(struct board));
+    *nb = *b;
+    return nb;
+}
 
 // White is on top and first cell is 0
 // Promotion should be added outside (queen and knight only imo)
@@ -476,12 +491,14 @@ int* possible_queen_moves(struct board* b, struct piece_id* id){
 int* possible_king_moves(struct board* b, struct piece_id* id){
     int is_white = id->white;
     struct pieces_board* pb = &(b->black_pieces);
+    struct previous_moves* pm = &(b->black_moves);
     if(is_white){
         pb = &(b->white_pieces);
+        pm = &(b->white_moves);
     }
     int cell = get_piece_cell(pb, id);
-    int num_possible_moves = 9;
-    int possible_moves[] = {-9, -8, -7, -1, 1, 7, 8, 9, -2};
+    int num_possible_moves = 10;
+    int possible_moves[] = {-9, -8, -7, -1, 1, 7, 8, 9, -2, 2}; // -2 castling close
     if(cell%8 == 0){
         possible_moves[0] = 0;
         possible_moves[3] = 0;
@@ -500,8 +517,33 @@ int* possible_king_moves(struct board* b, struct piece_id* id){
         possible_moves[6] = 0;
         possible_moves[7] = 0;
     }
-    if(!can_enroque){
-        possible_moves[8] = 0;
+    if(!pm->moved_king){
+        int can_castle_near = 0;
+        if(!pm->moved_rook_near){
+            if(is_white){
+                if(cell==3 && b->squares.piece[0]==rook && b->squares.is_white[0]==1 && b->squares.piece[1]==none && b->squares.piece[2]==none){
+                    can_castle_near = 1;
+                }
+            }else if(!is_white && cell==59 && b->squares.piece[56]==rook && b->squares.is_white[56]==1 && b->squares.piece[57]==none && b->squares.piece[58]==none){
+                can_castle_near = 1;
+            }
+        }
+        if(!can_castle_near){
+            possible_moves[8] = 0;
+        }
+        int can_castle_far = 0;
+        if(!pm->moved_rook_far){
+            if(is_white){
+                if(cell==3 && b->squares.piece[7]==rook && b->squares.is_white[7]==1 && b->squares.piece[6]==none && b->squares.piece[5]==none && b->squares.piece[4]==none){
+                    can_castle_far = 1;
+                }
+            }else if(!is_white && cell==59 && b->squares.piece[63]==rook && b->squares.is_white[63]==1 && b->squares.piece[62]==none && b->squares.piece[61]==none && b->squares.piece[60]==none){
+                can_castle_far = 1;
+            }
+        }
+        if(!can_castle_far){
+            possible_moves[9] = 0;
+        }
     }
     int num_positions = 0;
     for(int i = 0; i < num_possible_moves; i++){
@@ -529,28 +571,124 @@ int* possible_king_moves(struct board* b, struct piece_id* id){
     return positions;
 }
 
-struct board* get_potential_boards_moving_piece(struct board* b, struct piece_id* piece_id){
-    int is_white = piece_id->white;
+int* possible_piece_moves(struct board* b, struct piece_id* id){
+    switch(id->type){
+        case pawn:
+            return possible_pawn_moves(b, id);
+        case knight:
+            return possible_knight_moves(b, id);
+        case bishop:
+            return possible_bishop_moves(b, id);
+        case rook:
+            return possible_rook_moves(b, id);
+        case queen:
+            return possible_queen_moves(b, id);
+        case king:
+            return possible_king_moves(b, id);
+        default:
+            int* empty = (int*) malloc(0);
+            return empty;
+    }
+}
+
+void kill_piece(struct board* b, int new_position){
+    int* pieces_arr;
+    int is_white = b->squares.is_white[new_position];
     struct pieces_board* pb = &(b->black_pieces);
+    struct previous_moves* pm = &(b->black_moves);
     if(is_white){
         pb = &(b->white_pieces);
+        pm = &(b->white_moves);
     }
-    struct board* boards;
-    switch(piece_id->type){
+    switch(b->squares.piece[new_position]){
         case pawn:
+            pieces_arr = pb->pawn;
             break;
         case knight:
+            pieces_arr = pb->knight;
             break;
         case bishop:
+            pieces_arr = pb->bishop;
             break;
         case rook:
+            pieces_arr = pb->rook;
+            if(is_white){
+                if(new_position == 0){
+                    pm->moved_rook_near = 1;
+                }else if(new_position == 7){
+                    pm->moved_rook_far = 1;
+                }
+            }else{
+                if(new_position == 56){
+                    pm->moved_rook_near = 1;
+                }else if(new_position == 63){
+                    pm->moved_rook_far = 1;
+                }
+            }
             break;
         case queen:
+            pieces_arr = pb->queen;
             break;
         case king:
+            pb->king = PIECES_BOARD_DEAD;
+            pm->moved_king = 1;
+            return;
+    }
+    int tam_arr = sizeof(pieces_arr)/sizeof(int);
+    int index = 0;
+    for(int i = 0; i < tam_arr; i++){
+        if(pieces_arr[i] == new_position){
+            index = i;
             break;
-        default:
-            boards = (struct board*) malloc(0);
+        }
+    }
+    for(int i = index; i < tam_arr-1; i++){
+        pieces_arr[i] = pieces_arr[i+1];
+    }
+    pieces_arr[tam_arr-1] = PIECES_BOARD_DEAD;
+    b->squares.piece[new_position] = none;
+}
+
+void move_piece(struct board* b, struct piece_id* id, int prev_position, int new_position){
+    int is_white = id->white;
+    if(b->squares.piece[new_position]!=none){
+        kill_piece(b, new_position);
+    }
+    b->squares.piece[new_position] = b->squares.piece[prev_position];
+    b->squares.piece[prev_position] = none;
+    b->squares.is_white[new_position] = is_white;
+}
+
+
+// TODO: MOVES ADD PROMOTION, CASTLING MOVING TOWER, AND THE WEIRD THING PAWNS DO
+
+
+struct board* get_potential_boards_moving_piece(struct board* b, struct piece_id* piece_id){
+    int is_white = piece_id->white;
+    int prev_cell = get_piece_cell(b, piece_id);
+    int *moves = possible_piece_moves(b, piece_id);
+    int cant_moves = sizeof(moves)/sizeof(int);
+    struct board* boards = (struct board*) malloc(cant_moves* sizeof(struct board));
+    for(int i = 0; i < cant_moves; i++){
+        struct board* nb = copy_board(b);
+        struct previous_moves* pm = &(nb->black_moves);
+        struct pieces_board* pb = &(nb->black_pieces);
+        if(is_white){
+            pb = &(b->white_pieces);
+            pm = &(nb->white_moves);
+        }
+        if(piece_id->type == king){
+            pm->moved_king = 1;
+        }else if(piece_id->type == rook){
+            if(prev_cell == 0 || prev_cell == 56){
+                pm->moved_rook_near = 1;
+            }else if(prev_cell == 7 || prev_cell == 63){
+                pm->moved_rook_far = 1;
+            }
+        }
+        int new_position = prev_cell + moves[i];
+        move_piece(nb, piece_id, prev_cell, new_position);
+        
     }
     return boards;
 }
