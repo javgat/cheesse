@@ -1,4 +1,5 @@
 #include <stdlib.h>
+#include <string.h>
 
 enum board_piece{
     none = 0,
@@ -10,17 +11,8 @@ enum board_piece{
     king = 6,
 };
 
-enum piece{
-    pawn = 1,
-    knight = 2,
-    bishop = 3,
-    rook = 4,
-    queen = 5,
-    king = 6,
-};
-
 struct piece_id{
-    enum piece type;
+    enum board_piece type;
     int white; // 1 white, 0 black
     int index;
 };
@@ -88,9 +80,14 @@ struct board copy_board(struct board* b){
     return nb;
 }
 
+struct intarray{
+    int* arr;
+    int len;
+};
+
 // White is on top and first cell is 0
 // Promotion should be added outside (queen and knight only imo)
-int* possible_pawn_moves(struct board* b, struct piece_id* id){
+struct intarray possible_pawn_moves(struct board* b, struct piece_id* id){
     int is_white = id->white;
     struct pieces_board* pb = &(b->black_pieces);
     struct previous_moves* enemy_pm = &(b->white_moves);
@@ -154,10 +151,11 @@ int* possible_pawn_moves(struct board* b, struct piece_id* id){
             cont++;
         }
     }
-    return positions;
+    struct intarray returnable = {positions, num_positions};
+    return returnable;
 }
 
-int* possible_knight_moves(struct board* b, struct piece_id* id){
+struct intarray possible_knight_moves(struct board* b, struct piece_id* id){
     int is_white = id->white;
     struct pieces_board* pb = &(b->black_pieces);
     if(is_white){
@@ -240,10 +238,11 @@ int* possible_knight_moves(struct board* b, struct piece_id* id){
             cont++;
         }
     }
-    return positions;
+    struct intarray returnable = {positions, num_positions};
+    return returnable;
 }
 
-int* possible_bishop_moves(struct board* b, struct piece_id* id){
+struct intarray possible_bishop_moves(struct board* b, struct piece_id* id){
     int is_white = id->white;
     struct pieces_board* pb = &(b->black_pieces);
     if(is_white){
@@ -310,10 +309,11 @@ int* possible_bishop_moves(struct board* b, struct piece_id* id){
             cont++;
         }
     }
-    return positions;
+    struct intarray returnable = {positions, num_positions};
+    return returnable;
 }
 
-int* possible_rook_moves(struct board* b, struct piece_id* id){
+struct intarray possible_rook_moves(struct board* b, struct piece_id* id){
     int is_white = id->white;
     struct pieces_board* pb = &(b->black_pieces);
     if(is_white){
@@ -380,10 +380,11 @@ int* possible_rook_moves(struct board* b, struct piece_id* id){
             cont++;
         }
     }
-    return positions;
+    struct intarray returnable = {positions, num_positions};
+    return returnable;
 }
 
-int* possible_queen_moves(struct board* b, struct piece_id* id){
+struct intarray possible_queen_moves(struct board* b, struct piece_id* id){
     int is_white = id->white;
     struct pieces_board* pb = &(b->black_pieces);
     if(is_white){
@@ -498,11 +499,12 @@ int* possible_queen_moves(struct board* b, struct piece_id* id){
             cont++;
         }
     }
-    return positions;
+    struct intarray returnable = {positions, num_positions};
+    return returnable;
 }
 
 // if castling the move should move the rook
-int* possible_king_moves(struct board* b, struct piece_id* id){
+struct intarray possible_king_moves(struct board* b, struct piece_id* id){
     int is_white = id->white;
     struct pieces_board* pb = &(b->black_pieces);
     struct previous_moves* pm = &(b->black_moves);
@@ -582,10 +584,11 @@ int* possible_king_moves(struct board* b, struct piece_id* id){
             cont++;
         }
     }
-    return positions;
+    struct intarray returnable = {positions, num_positions};
+    return returnable;
 }
 
-int* possible_piece_moves(struct board* b, struct piece_id* id){
+struct intarray possible_piece_moves(struct board* b, struct piece_id* id){
     switch(id->type){
         case pawn:
             return possible_pawn_moves(b, id);
@@ -599,9 +602,11 @@ int* possible_piece_moves(struct board* b, struct piece_id* id){
             return possible_queen_moves(b, id);
         case king:
             return possible_king_moves(b, id);
-        default:
+        default: {
             int* empty = (int*) malloc(0);
-            return empty;
+            struct intarray returnable = {empty, 0};
+            return returnable;
+        }
     }
 }
 
@@ -614,18 +619,23 @@ void kill_piece(struct board* b, int new_position){
         pb = &(b->white_pieces);
         pm = &(b->white_moves);
     }
+    int tam_arr = 0;
     switch(b->squares.piece[new_position]){
         case pawn:
             pieces_arr = pb->pawn;
+            tam_arr = 8;
             break;
         case knight:
             pieces_arr = pb->knight;
+            tam_arr = 10;
             break;
         case bishop:
             pieces_arr = pb->bishop;
+            tam_arr = 10;
             break;
         case rook:
             pieces_arr = pb->rook;
+            tam_arr = 10;
             if(is_white){
                 if(new_position == 0){
                     pm->moved_rook_near = 1;
@@ -642,13 +652,15 @@ void kill_piece(struct board* b, int new_position){
             break;
         case queen:
             pieces_arr = pb->queen;
+            tam_arr = 9;
             break;
         case king:
             pb->king = PIECES_BOARD_DEAD;
             pm->moved_king = 1;
             return;
+        default:
+            return;
     }
-    int tam_arr = sizeof(pieces_arr)/sizeof(int);
     int index = 0;
     for(int i = 0; i < tam_arr; i++){
         if(pieces_arr[i] == new_position){
@@ -716,14 +728,12 @@ void move_piece(struct board* b, struct piece_id* id, int prev_position, int new
     }
 }
 
-void apply_promotion(struct board* b, int is_white, enum piece piece_type){
+void apply_promotion(struct board* b, int is_white, enum board_piece piece_type){
     int base = 0;
-    struct previous_moves* pm = &(b->black_moves);
     struct pieces_board* pb = &(b->black_pieces);
     if(is_white){
         base = 56;
         pb = &(b->white_pieces);
-        pm = &(b->white_moves);
     }
     for(int i = base; i < base+8; i++){
         if(b->squares.piece[i] == pawn){
@@ -732,11 +742,12 @@ void apply_promotion(struct board* b, int is_white, enum piece piece_type){
                 if(pb->pawn[j] == i){
                     kill_piece(b, i);
                     b->squares.piece[i] = piece_type;
+                    int cant_pieces_arr = 9;
                     int* piece_array = pb->queen;
                     if(piece_type == knight){
+                        cant_pieces_arr = 10;
                         piece_array = pb->knight;
                     }
-                    int cant_pieces_arr = sizeof(piece_array)/sizeof(int);
                     for(int k = 0; k < cant_pieces_arr; k++){
                         if(piece_array[k] == PIECES_BOARD_DEAD){
                             piece_array[k] = i;
@@ -753,9 +764,14 @@ void apply_promotion(struct board* b, int is_white, enum piece piece_type){
 
 struct board* get_potential_boards_moving_piece(struct board* b, struct piece_id* piece_id){
     int is_white = piece_id->white;
-    int prev_cell = get_piece_cell(b, piece_id);
-    int *moves = possible_piece_moves(b, piece_id);
-    int cant_moves = sizeof(moves)/sizeof(int);
+    struct pieces_board* opb = &(b->black_pieces);
+    if(is_white){
+        opb = &(b->white_pieces);
+    }
+    int prev_cell = get_piece_cell(opb, piece_id);
+    struct intarray movesarray = possible_piece_moves(b, piece_id);
+    int* moves = movesarray.arr;
+    int cant_moves = movesarray.len;
     int cant_boards = cant_moves;
     if(piece_id->type == pawn){
         for(int i = 0; i < cant_moves; i++){
@@ -772,9 +788,7 @@ struct board* get_potential_boards_moving_piece(struct board* b, struct piece_id
         struct board* nb = &(boards[board_pos]);
         board_pos++;
         struct previous_moves* pm = &(nb->black_moves);
-        struct pieces_board* pb = &(nb->black_pieces);
         if(is_white){
-            pb = &(nb->white_pieces);
             pm = &(nb->white_moves);
         }
         if(piece_id->type == king){
@@ -797,4 +811,8 @@ struct board* get_potential_boards_moving_piece(struct board* b, struct piece_id
         }
     }
     return boards;
+}
+
+int main(){
+    return 0;
 }
