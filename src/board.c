@@ -650,17 +650,48 @@ void kill_piece(struct board* b, int new_position){
 }
 
 void move_piece(struct board* b, struct piece_id* id, int prev_position, int new_position){
+    // assert: the move is valid
     int is_white = id->white;
+    struct previous_moves* pm = &(b->black_moves);
+    struct pieces_board* pb = &(b->black_pieces);
+    if(is_white){
+        pb = &(b->white_pieces);
+        pm = &(b->white_moves);
+    }
     if(b->squares.piece[new_position]!=none){
         kill_piece(b, new_position);
     }
     b->squares.piece[new_position] = b->squares.piece[prev_position];
     b->squares.piece[prev_position] = none;
     b->squares.is_white[new_position] = is_white;
+    if(id->type == king){ // check castling and if it is, move rook
+        int move = new_position - prev_position;
+        if(move == -2 || move == 2){// castling
+            int rook_prev = new_position - 1; // initialized to castling near values
+            int rook_new = new_position + 1;
+            if(move == -2){ // castling near
+                pm->moved_rook_near = 1;
+            }else{ // castling far
+                pm->moved_rook_far = 1;
+                rook_prev = new_position + 2;
+                rook_new = new_position - 1;
+            }
+            int size_rook_arr = sizeof(pb->rook)/sizeof(int);
+            int rook_index = 0;
+            for(int i = 0; i < size_rook_arr; i++){
+                if(pb->rook[i] == rook_prev){
+                    rook_index = i;
+                    break;
+                }
+            }
+            struct piece_id rook_id = (struct piece_id) {rook, is_white, rook_index};
+            move_piece(b, &rook_id, rook_prev, rook_new);
+        }
+    }
 }
 
 
-// TODO: MOVES ADD PROMOTION, CASTLING MOVING TOWER, AND THE WEIRD THING PAWNS DO
+// TODO: MOVES ADD PROMOTION, AND THE WEIRD THING PAWNS DO
 
 
 struct board* get_potential_boards_moving_piece(struct board* b, struct piece_id* piece_id){
@@ -674,7 +705,7 @@ struct board* get_potential_boards_moving_piece(struct board* b, struct piece_id
         struct previous_moves* pm = &(nb->black_moves);
         struct pieces_board* pb = &(nb->black_pieces);
         if(is_white){
-            pb = &(b->white_pieces);
+            pb = &(nb->white_pieces);
             pm = &(nb->white_moves);
         }
         if(piece_id->type == king){
@@ -688,6 +719,9 @@ struct board* get_potential_boards_moving_piece(struct board* b, struct piece_id
         }
         int new_position = prev_cell + moves[i];
         move_piece(nb, piece_id, prev_cell, new_position);
+        if(piece_id->type == pawn){
+
+        }
         
     }
     return boards;
