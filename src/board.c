@@ -72,6 +72,7 @@ struct previous_moves{
     int moved_king;
     int moved_rook_near;
     int moved_rook_far;
+    int just_two_squared[8];
 };
 
 struct board{
@@ -92,8 +93,10 @@ struct board copy_board(struct board* b){
 int* possible_pawn_moves(struct board* b, struct piece_id* id){
     int is_white = id->white;
     struct pieces_board* pb = &(b->black_pieces);
+    struct previous_moves* enemy_pm = &(b->white_moves);
     if(is_white){
         pb = &(b->white_pieces);
+        enemy_pm = &(b->black_moves);
     }
     int cell = get_piece_cell(pb, id);
     int is_initial = 0;
@@ -124,12 +127,24 @@ int* possible_pawn_moves(struct board* b, struct piece_id* id){
         num_positions -= 2;
     }
     if((is_white && cell%8 == 0) || (!is_white && cell%8 == 7) || !(b->squares.piece[cell + eat_1] != none && b->squares.is_white[cell + eat_1] != is_white)){
-        possible_positions[2] = 0;
-        num_positions--;
+        int on_passant_pawn = cell + 1;
+        if(is_white){
+            on_passant_pawn = cell - 1;
+        }
+        if((is_white && cell%8 == 0) || (!is_white && cell%8 == 7) || !(b->squares.piece[on_passant_pawn] == pawn && b->squares.is_white[on_passant_pawn] != is_white && enemy_pm->just_two_squared[on_passant_pawn%8])){
+            possible_positions[2] = 0;
+            num_positions--;
+        }
     }
     if((is_white && cell%8 == 7) || (!is_white && cell%8 == 0) || !(b->squares.piece[cell + eat_2] != none && b->squares.is_white[cell + eat_2] != is_white)){
-        possible_positions[3] = 0;
-        num_positions--;
+        int on_passant_pawn = cell - 1;
+        if(is_white){
+            on_passant_pawn = cell + 1;
+        }
+        if((is_white && cell%8 == 7) || (!is_white && cell%8 == 0) || !(b->squares.piece[on_passant_pawn] == pawn && b->squares.is_white[on_passant_pawn] != is_white && enemy_pm->just_two_squared[on_passant_pawn%8])){
+            possible_positions[3] = 0;
+            num_positions--;
+        }
     }
     int *positions = (int*) malloc(sizeof(int) * num_positions);
     int cont = 0;
@@ -652,19 +667,25 @@ void move_piece(struct board* b, struct piece_id* id, int prev_position, int new
     // assert: the move is valid
     int is_white = id->white;
     struct previous_moves* pm = &(b->black_moves);
+    struct previous_moves* enemy_pm = &(b->white_moves);
     struct pieces_board* pb = &(b->black_pieces);
+    int on_passant_pawn = new_position + 8;
     if(is_white){
         pb = &(b->white_pieces);
         pm = &(b->white_moves);
+        enemy_pm = &(b->black_moves);
+        on_passant_pawn = new_position - 8;
     }
     if(b->squares.piece[new_position]!=none){
         kill_piece(b, new_position);
+    }else if(b->squares.piece[on_passant_pawn] == pawn && b->squares.is_white[on_passant_pawn] != is_white && enemy_pm->just_two_squared[on_passant_pawn%8]){ // on passant
+        kill_piece(b, on_passant_pawn);
     }
     b->squares.piece[new_position] = b->squares.piece[prev_position];
     b->squares.piece[prev_position] = none;
     b->squares.is_white[new_position] = is_white;
+    int move = new_position - prev_position;
     if(id->type == king){ // check castling and if it is, move rook
-        int move = new_position - prev_position;
         if(move == -2 || move == 2){// castling
             int rook_prev = new_position - 1; // initialized to castling near values
             int rook_new = new_position + 1;
@@ -687,11 +708,13 @@ void move_piece(struct board* b, struct piece_id* id, int prev_position, int new
             move_piece(b, &rook_id, rook_prev, rook_new);
         }
     }
+    if(id->type == pawn && (move == 16 || move == -16)){ // just moved two (could be on passanted)
+        int pawn_index = prev_position%8;
+        pm->just_two_squared[pawn_index] = 1;
+    }else{
+        memset(pm->just_two_squared, 0, sizeof(pm->just_two_squared));
+    }
 }
-
-
-// TODO: THE WEIRD THING PAWNS DO
-
 
 void apply_promotion(struct board* b, int is_white, enum piece piece_type){
     int base = 0;
