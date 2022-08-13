@@ -82,9 +82,8 @@ struct board{
     struct previous_moves black_moves;
 };
 
-struct board* copy_board(struct board* b){
-    struct board* nb = (struct board*) malloc(sizeof(struct board));
-    *nb = *b;
+struct board copy_board(struct board* b){
+    struct board nb = *b;
     return nb;
 }
 
@@ -691,17 +690,64 @@ void move_piece(struct board* b, struct piece_id* id, int prev_position, int new
 }
 
 
-// TODO: MOVES ADD PROMOTION, AND THE WEIRD THING PAWNS DO
+// TODO: THE WEIRD THING PAWNS DO
 
+
+void apply_promotion(struct board* b, int is_white, enum piece piece_type){
+    int base = 0;
+    struct previous_moves* pm = &(b->black_moves);
+    struct pieces_board* pb = &(b->black_pieces);
+    if(is_white){
+        base = 56;
+        pb = &(b->white_pieces);
+        pm = &(b->white_moves);
+    }
+    for(int i = base; i < base+8; i++){
+        if(b->squares.piece[i] == pawn){
+            int cant_pawns = sizeof(pb->pawn)/sizeof(int);
+            for(int j = 0; j < cant_pawns; j++){
+                if(pb->pawn[j] == i){
+                    kill_piece(b, i);
+                    b->squares.piece[i] = piece_type;
+                    int* piece_array = pb->queen;
+                    if(piece_type == knight){
+                        piece_array = pb->knight;
+                    }
+                    int cant_pieces_arr = sizeof(piece_array)/sizeof(int);
+                    for(int k = 0; k < cant_pieces_arr; k++){
+                        if(piece_array[k] == PIECES_BOARD_DEAD){
+                            piece_array[k] = i;
+                            break;
+                        }
+                    }
+                    break;
+                }
+            }
+            break;
+        }
+    }
+}
 
 struct board* get_potential_boards_moving_piece(struct board* b, struct piece_id* piece_id){
     int is_white = piece_id->white;
     int prev_cell = get_piece_cell(b, piece_id);
     int *moves = possible_piece_moves(b, piece_id);
     int cant_moves = sizeof(moves)/sizeof(int);
-    struct board* boards = (struct board*) malloc(cant_moves* sizeof(struct board));
+    int cant_boards = cant_moves;
+    if(piece_id->type == pawn){
+        for(int i = 0; i < cant_moves; i++){
+            int new_pos = moves[i] + prev_cell;
+            if(new_pos <= 7 || new_pos >= 56){
+                cant_boards++;
+            }
+        }
+    }
+    struct board* boards = (struct board*) malloc(cant_boards* sizeof(struct board));
+    int board_pos = 0;
     for(int i = 0; i < cant_moves; i++){
-        struct board* nb = copy_board(b);
+        boards[board_pos] = copy_board(b);
+        struct board* nb = &(boards[board_pos]);
+        board_pos++;
         struct previous_moves* pm = &(nb->black_moves);
         struct pieces_board* pb = &(nb->black_pieces);
         if(is_white){
@@ -719,10 +765,13 @@ struct board* get_potential_boards_moving_piece(struct board* b, struct piece_id
         }
         int new_position = prev_cell + moves[i];
         move_piece(nb, piece_id, prev_cell, new_position);
-        if(piece_id->type == pawn){
-
+        if(piece_id->type == pawn && (new_position <= 7 || new_position >= 56)){ // promotion
+            boards[board_pos] = copy_board(nb);
+            struct board* nb2 = &(boards[board_pos]);
+            board_pos++;
+            apply_promotion(nb, is_white, queen);
+            apply_promotion(nb2, is_white, knight);
         }
-        
     }
     return boards;
 }
