@@ -1,5 +1,8 @@
 #include <stdlib.h>
 #include <string.h>
+#ifndef BOARD_H
+#define BOARD_H
+#endif
 
 enum board_piece{
     none = 0,
@@ -59,6 +62,11 @@ struct intarray{
     int len;
 };
 
+struct boardarray{
+    struct board* arr;
+    int len;
+};
+
 struct board copy_board(struct board* b);
 
 // White is on top and first cell is 0
@@ -83,4 +91,26 @@ void move_piece(struct board* b, struct piece_id* id, int prev_position, int new
 
 void apply_promotion(struct board* b, int is_white, enum board_piece piece_type);
 
-struct board* get_potential_boards_moving_piece(struct board* b, struct piece_id* piece_id);
+struct boardarray get_potential_boards_moving_piece(struct board* b, struct piece_id* piece_id);
+
+struct boardarray get_potential_boards_moving_type(struct board* b, int white, enum board_piece type);
+
+struct boardarray get_potential_boards_board(struct board* b, int white);
+
+struct eval_board{
+    struct board* b;
+    int evaluation;
+};
+
+struct eval_board_array{
+    struct eval_board* evs;
+    int len;
+};
+
+int evaluate(struct board* b);
+
+struct eval_board_array get_evaluated_potential_boards(struct board* b, int white);
+
+struct eval_board_array min_board(struct board* b, int white, int depth);
+
+struct eval_board_array max_board(struct board* b, int white, int depth);

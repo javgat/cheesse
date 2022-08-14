@@ -1,5 +1,6 @@
 #include <stdlib.h>
 #include <string.h>
+#include <stdio.h>
 
 enum board_piece{
     none = 0,
@@ -168,7 +169,7 @@ struct intarray possible_knight_moves(struct board* b, struct piece_id* id){
     }
     int cell = get_piece_cell(pb, id);
     int possible_moves[] = {-17, -15, -10, -6, 6, 10, 15, 17};
-    int num_possible_moves = 6;
+    int num_possible_moves = 8;
     int num_positions = num_possible_moves;
     if(cell%8 <= 1){
         num_positions -= 2;
@@ -568,7 +569,7 @@ struct intarray possible_king_moves(struct board* b, struct piece_id* id){
     }
     int num_positions = 0;
     for(int i = 0; i < num_possible_moves; i++){
-        if(possible_moves != 0){
+        if(possible_moves[i] != 0){
             num_positions++;
         }
     }
@@ -818,6 +819,7 @@ struct boardarray get_potential_boards_moving_piece(struct board* b, struct piec
     struct boardarray returnable;
     returnable.arr = boards;
     returnable.len = cant_boards;
+    free(movesarray.arr);
     return returnable;
 }
 
@@ -846,13 +848,15 @@ struct boardarray get_potential_boards_moving_type(struct board* b, int white, e
             parray = pb->queen;
             arrlen = 9;
             break;
-        case king:
+        case king:{
             struct piece_id king_id = (struct piece_id){king, white, 0};
             return get_potential_boards_moving_piece(b, &king_id);
-        default:
+        }
+        default:{
             struct board* empty = (struct board*)malloc(0);
             struct boardarray returnable = (struct boardarray){empty, 0};
             return returnable;
+        }
     }
     struct boardarray boardarrays[arrlen];
     int cant_boardarrays = 0;
@@ -875,10 +879,17 @@ struct boardarray get_potential_boards_moving_type(struct board* b, int white, e
         }
     }
     struct boardarray returnable = (struct boardarray){boards, cant_boards};
+    for(int i = 0; i < arrlen; i++){
+        if(parray[i] == 64){
+            break;
+        }
+        free(boardarrays[i].arr);
+    }
     return returnable;
 }
 
 struct boardarray get_potential_boards_board(struct board* b, int white){
+    printf("entro_pboards ");fflush(stdout);
     struct boardarray bas[6];
     enum board_piece types[] = {pawn, knight, bishop, rook, queen, king};
     int cant_boards = 0;
@@ -895,9 +906,129 @@ struct boardarray get_potential_boards_board(struct board* b, int white){
         }
     }
     struct boardarray returnable = (struct boardarray){boards, cant_boards};
+    for(int i = 0; i < 6; i++){
+        free(bas[i].arr);
+    }
+    printf("salgo_pboards ");fflush(stdout);
     return returnable;
 }
 
-int main(){
-    return 0;
+struct eval_board{
+    struct board* b;
+    int evaluation;
+};
+
+struct eval_board_array{
+    struct eval_board* evs;
+    int len;
+};
+
+int evaluate(struct board* b){
+    return 0; // 1 win white, -1 win black
+}
+
+struct eval_board_array get_evaluated_potential_boards(struct board* b, int white){
+    printf("entro_evpot ");fflush(stdout);
+    struct boardarray ba = get_potential_boards_board(b, white);
+    struct eval_board* evs = (struct eval_board*) malloc(ba.len * sizeof(struct eval_board));
+    for(int i = 0; i<ba.len; i++){
+        printf("entro_evpot_buc ");fflush(stdout);
+        struct board* point = (struct board*) malloc(sizeof(struct board));
+        printf("salgo_evpot_buc ");fflush(stdout);
+        evs[i].b = point;
+        *(evs[i].b) = copy_board(&(ba.arr[i]));
+        evs[i].evaluation = evaluate(evs[i].b);
+    }
+    printf("salgo_evpot ");fflush(stdout);
+    struct eval_board_array ret = (struct eval_board_array) {evs, ba.len};
+    //free(ba.arr);
+    return ret;
+}
+
+struct eval_board_array max_board(struct board* b, int white, int depth);
+
+struct eval_board_array min_board(struct board* b, int white, int depth){
+    if(depth == 0){
+        struct eval_board_array eba = get_evaluated_potential_boards(b, white);
+        if(eba.len == 0){
+            struct eval_board *emp = (struct eval_board*) malloc(0);
+            struct eval_board_array empty = {emp, 0};
+            return empty;
+        }
+        struct eval_board *eb = &(eba.evs[0]);
+        for(int i = 0; i < eba.len; i++){
+            if(eba.evs[i].evaluation < eb->evaluation){
+                eb = &(eba.evs[i]);
+            }
+        }
+        struct eval_board *neb = (struct eval_board*) malloc(sizeof(struct eval_board));
+        *neb = *eb;
+        struct eval_board_array ret = {neb, 1};
+        for(int i = 0; i < eba.len; i++){
+            free(eba.evs[i].b);
+        }
+        free(eba.evs);
+        return ret;
+    }
+    struct boardarray ba = get_potential_boards_board(b, white);
+    struct eval_board_array min_eba;
+    int inited = 0;
+    for(int i = 0; i < ba.len; i++){
+        struct eval_board_array eba = max_board(&(ba.arr[i]), !white, depth-1);
+        if(eba.len == 1){
+            if(!inited){
+                inited = 1;
+                min_eba = eba;
+            }else{
+                if(min_eba.evs[0].evaluation > eba.evs[0].evaluation){
+                    min_eba = eba;
+                }
+            }
+        }
+    }
+    free(ba.arr);
+    return min_eba;
+}
+
+struct eval_board_array max_board(struct board* b, int white, int depth){
+    if(depth == 0){
+        struct eval_board_array eba = get_evaluated_potential_boards(b, white);
+        if(eba.len == 0){
+            struct eval_board *emp = (struct eval_board*) malloc(0);
+            struct eval_board_array empty = {emp, 0};
+            return empty;
+        }
+        struct eval_board *eb = &(eba.evs[0]);
+        for(int i = 0; i < eba.len; i++){
+            if(eba.evs[i].evaluation > eb->evaluation){
+                eb = &(eba.evs[i]);
+            }
+        }
+        struct eval_board *neb = (struct eval_board*) malloc(sizeof(struct eval_board));
+        *neb = *eb;
+        struct eval_board_array ret = {neb, 1};
+        for(int i = 0; i < eba.len; i++){
+            free(eba.evs[i].b);
+        }
+        free(eba.evs);
+        return ret;
+    }
+    struct boardarray ba = get_potential_boards_board(b, white);
+    struct eval_board_array max_eba;
+    int inited = 0;
+    for(int i = 0; i < ba.len; i++){
+        struct eval_board_array eba = min_board(&(ba.arr[i]), !white, depth-1);
+        if(eba.len == 1){
+            if(!inited){
+                inited = 1;
+                max_eba = eba;
+            }else{
+                if(max_eba.evs[0].evaluation < eba.evs[0].evaluation){
+                    max_eba = eba;
+                }
+            }
+        }
+    }
+    free(ba.arr);
+    return max_eba;
 }
