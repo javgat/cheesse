@@ -74,7 +74,7 @@ struct board{
     struct previous_moves white_moves;
     struct previous_moves black_moves;
 };
-
+ 
 struct board copy_board(struct board* b){
     struct board nb = *b;
     return nb;
@@ -82,6 +82,11 @@ struct board copy_board(struct board* b){
 
 struct intarray{
     int* arr;
+    int len;
+};
+
+struct boardarray{
+    struct board* arr;
     int len;
 };
 
@@ -151,7 +156,7 @@ struct intarray possible_pawn_moves(struct board* b, struct piece_id* id){
             cont++;
         }
     }
-    struct intarray returnable = {positions, num_positions};
+    struct intarray returnable = (struct intarray){positions, num_positions};
     return returnable;
 }
 
@@ -238,7 +243,7 @@ struct intarray possible_knight_moves(struct board* b, struct piece_id* id){
             cont++;
         }
     }
-    struct intarray returnable = {positions, num_positions};
+    struct intarray returnable = (struct intarray){positions, num_positions};
     return returnable;
 }
 
@@ -309,7 +314,7 @@ struct intarray possible_bishop_moves(struct board* b, struct piece_id* id){
             cont++;
         }
     }
-    struct intarray returnable = {positions, num_positions};
+    struct intarray returnable = (struct intarray){positions, num_positions};
     return returnable;
 }
 
@@ -380,7 +385,7 @@ struct intarray possible_rook_moves(struct board* b, struct piece_id* id){
             cont++;
         }
     }
-    struct intarray returnable = {positions, num_positions};
+    struct intarray returnable = (struct intarray){positions, num_positions};
     return returnable;
 }
 
@@ -499,7 +504,7 @@ struct intarray possible_queen_moves(struct board* b, struct piece_id* id){
             cont++;
         }
     }
-    struct intarray returnable = {positions, num_positions};
+    struct intarray returnable = (struct intarray){positions, num_positions};
     return returnable;
 }
 
@@ -584,7 +589,7 @@ struct intarray possible_king_moves(struct board* b, struct piece_id* id){
             cont++;
         }
     }
-    struct intarray returnable = {positions, num_positions};
+    struct intarray returnable = (struct intarray){positions, num_positions};
     return returnable;
 }
 
@@ -604,7 +609,7 @@ struct intarray possible_piece_moves(struct board* b, struct piece_id* id){
             return possible_king_moves(b, id);
         default: {
             int* empty = (int*) malloc(0);
-            struct intarray returnable = {empty, 0};
+            struct intarray returnable = (struct intarray){empty, 0};
             return returnable;
         }
     }
@@ -762,7 +767,7 @@ void apply_promotion(struct board* b, int is_white, enum board_piece piece_type)
     }
 }
 
-struct board* get_potential_boards_moving_piece(struct board* b, struct piece_id* piece_id){
+struct boardarray get_potential_boards_moving_piece(struct board* b, struct piece_id* piece_id){
     int is_white = piece_id->white;
     struct pieces_board* opb = &(b->black_pieces);
     if(is_white){
@@ -810,7 +815,87 @@ struct board* get_potential_boards_moving_piece(struct board* b, struct piece_id
             apply_promotion(nb2, is_white, knight);
         }
     }
-    return boards;
+    struct boardarray returnable;
+    returnable.arr = boards;
+    returnable.len = cant_boards;
+    return returnable;
+}
+
+struct boardarray get_potential_boards_moving_type(struct board* b, int white, enum board_piece type){
+    struct pieces_board* pb = &(b->black_pieces);
+    if(white){
+        pb = &(b->white_pieces);
+    }
+    int* parray;
+    int arrlen = 10;
+    switch(type){
+        case pawn:
+            parray = pb->pawn;
+            arrlen = 8;
+            break;
+        case knight:
+            parray = pb->knight;
+            break;
+        case bishop:
+            parray = pb->bishop;
+            break;
+        case rook:
+            parray = pb->rook;
+            break;
+        case queen:
+            parray = pb->queen;
+            arrlen = 9;
+            break;
+        case king:
+            struct piece_id king_id = (struct piece_id){king, white, 0};
+            return get_potential_boards_moving_piece(b, &king_id);
+        default:
+            struct board* empty = (struct board*)malloc(0);
+            struct boardarray returnable = (struct boardarray){empty, 0};
+            return returnable;
+    }
+    struct boardarray boardarrays[arrlen];
+    int cant_boardarrays = 0;
+    int cant_boards = 0;
+    for(int i = 0; i < arrlen; i++){
+        if(parray[i] == 64){
+            break;
+        }
+        struct piece_id id = (struct piece_id){type, white, i};
+        boardarrays[i] = get_potential_boards_moving_piece(b, &id);
+        cant_boardarrays++;
+        cant_boards += boardarrays[i].len;
+    }
+    struct board* boards = (struct board*)malloc(sizeof(struct board) * cant_boards);
+    int board_index = 0;
+    for(int i = 0; i < cant_boardarrays; i++){
+        for(int j = 0; j < boardarrays[i].len; j++){
+            boards[board_index] = boardarrays[i].arr[j];
+            board_index++;
+        }
+    }
+    struct boardarray returnable = (struct boardarray){boards, cant_boards};
+    return returnable;
+}
+
+struct boardarray get_potential_boards_board(struct board* b, int white){
+    struct boardarray bas[6];
+    enum board_piece types[] = {pawn, knight, bishop, rook, queen, king};
+    int cant_boards = 0;
+    for(int i = 0; i < 6; i++){
+        bas[i] = get_potential_boards_moving_type(b, white, types[i]);   
+        cant_boards += bas[i].len;
+    }
+    struct board* boards = (struct board*) malloc(sizeof(struct board) * cant_boards);
+    int b_index = 0;
+    for(int i = 0; i < 6; i++){
+        for(int j = 0; j < bas[i].len; j++){
+            boards[b_index] = bas[i].arr[j];
+            b_index++;
+        }
+    }
+    struct boardarray returnable = (struct boardarray){boards, cant_boards};
+    return returnable;
 }
 
 int main(){
