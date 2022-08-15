@@ -86,39 +86,15 @@ void init_board(struct board* b){
     return;
 }
 
-void print_board(struct board* b){
-    for(int j = 0; j<64; j++){
-        switch(b->squares.piece[j]){
-            case pawn:
-                printf("p");
-                break;
-            case knight:
-                printf("n");
-                break;
-            case bishop:
-                printf("b");
-                break;
-            case rook:
-                printf("r");
-                break;
-            case queen:
-                printf("q");
-                break;
-            case king:
-                printf("k");
-                break;
-            default:
-                printf("_");
-        }
-        if(j%8 == 7){
-            printf("\n");
-        }
-    }
-}
-
 int main(){
     struct board b;
     init_board(&b);
-    struct eval_board_array bs = max_board(&b, 1, 3);
+    struct board_result br = minimax(&b, 1, 2);
+    printf("\nFinal board\n\n");
+    print_board(br.eb->b);
+    printf("\nPrevious board\n\n");
+    print_board(&(br.previous[0]));
+    printf("\nPrePrevious board\n\n");
+    print_board(&(br.previous[1]));
     return 0;
 }

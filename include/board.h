@@ -107,10 +107,19 @@ struct eval_board_array{
     int len;
 };
 
+struct board_result{
+    struct eval_board* eb;
+    struct board* previous;
+};
+
 int evaluate(struct board* b);
 
 struct eval_board_array get_evaluated_potential_boards(struct board* b, int white);
 
-struct eval_board_array min_board(struct board* b, int white, int depth);
+struct board_result min_board(struct board* b, int white, int depth, int orig_depth);
 
-struct eval_board_array max_board(struct board* b, int white, int depth);
+struct board_result max_board(struct board* b, int white, int depth, int orig_depth);
+
+struct board_result minimax(struct board* b, int white, int depth);
+
+void print_board(struct board* b);
