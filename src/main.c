@@ -120,13 +120,19 @@ int main(int argc, char *argv[]){
         }else{
             b = copy_board(br.eb->b);
         }
+        for(int i = 0; i < rec; i++){
+            printf("\nPreboard %d\n\n", i);
+            print_board(&br.previous[i]);
+        }
         enum board_piece bps[] = {pawn, knight, bishop, rook, queen};
         int cant_pieces[] = {8, 10, 10, 10, 9};
+        int no_change = 1;
         for(int i = 0; i < 5; i++){
             int *oparr = get_piece_array(&old_b.white_pieces, bps[i]);
             int *parr = get_piece_array(&b.white_pieces, bps[i]);
             for(int j = 0; j < cant_pieces[i]; j++){
                 if(oparr[j] != parr[j]){
+                    no_change = 0;
                     char move_from_st[3] = "";
                     char move_to_st[3] = "";
                     fill_cell_name(oparr[j], move_from_st);
@@ -136,15 +142,22 @@ int main(int argc, char *argv[]){
             }
         }
         if(old_b.white_pieces.king != b.white_pieces.king){
+            no_change = 0;
             char move_from_stkg[3] = "";
             char move_to_stkg[3] = "";
             fill_cell_name(old_b.white_pieces.king, move_from_stkg);
             fill_cell_name(b.white_pieces.king, move_to_stkg);
             printf("%s %s\n", move_from_stkg, move_to_stkg);fflush(stdout);
         }
-        if(br.eb->stalemate){
+        if(no_change && br.eb->stalemate){
             printf("\nSTALEMATE\n");
             return 0;
+        }
+        if(no_change){
+            printf("ERROR NO CHANGE\n");
+#ifdef DEBUG
+            printf("LAST MOVE: FROM %d TO %d\n", b.last_move[0], b.last_move[1]);
+#endif
         }
         free(br.previous);
         free(br.eb->b);

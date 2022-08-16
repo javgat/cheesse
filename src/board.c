@@ -3,6 +3,8 @@
 #include <stdio.h>
 #include "tables.h"
 
+#define KING_DEAD 500000
+
 enum board_piece{
     none = 0,
     pawn = 1,
@@ -75,6 +77,9 @@ struct board{
     struct squares_board squares;
     struct previous_moves white_moves;
     struct previous_moves black_moves;
+#ifdef DEBUG
+    int last_move[2];
+#endif
 };
  
 struct board copy_board(struct board* b){
@@ -652,9 +657,6 @@ struct intarray possible_piece_moves(struct board* b, struct piece_id* id){
 }
 
 void kill_piece(struct board* b, int new_position){
-#ifdef DEBUG
-    printf("killing piece at position %d, a %d\n", new_position, b->squares.piece[new_position]);fflush(stdout);
-#endif
     int* pieces_arr;
     int is_white = b->squares.is_white[new_position];
     struct pieces_board* pb = &(b->black_pieces);
@@ -747,6 +749,8 @@ void move_piece(struct board* b, struct piece_id* id, int prev_position, int new
     if(new_position > 63){
         printf("invalid new position of %d type from %d to %d\n", id->type, prev_position, new_position); fflush(stdout);
     }
+    b->last_move[0] = prev_position;
+    b->last_move[1] = new_position;
 #endif
     int is_white = id->white;
     struct previous_moves* pm = &(b->black_moves);
@@ -1009,7 +1013,6 @@ struct board_result{
 int evaluate(struct board* b){
     int points = 0;
     int piece_points[] = PIECE_VALS;
-    // PAWNS
     for(int type_index = 0; type_index < 6; type_index++){
         int piece_val = piece_points[type_index];
         int* wp = b->white_pieces.pawn;
@@ -1077,10 +1080,43 @@ int evaluate(struct board* b){
             }
         }
     }
+    if(b->black_pieces.king == 64 && b->white_pieces.king == 64){
+        points = 0; // shouldnt happen
+    }else if(b->black_pieces.king == 64){
+        points = KING_DEAD;
+    }else if(b->white_pieces.king == 64){
+        points = -KING_DEAD;
+    }
     return points; // 1 win white, -1 win black
 }
 
+int is_king_dead(struct board* b, int white){
+    struct pieces_board* pb = &b->black_pieces;
+    if(white){
+        pb = &b->white_pieces;
+    }
+    return (pb->king == 64);
+}
+
+struct eval_board* get_dead_king_eval_board(struct board* b, int white){
+    struct eval_board* eb = (struct eval_board*) malloc(sizeof(struct eval_board));
+    struct board* board = (struct board*) malloc(sizeof(struct board));
+    *board = copy_board(b);
+    eb->b = board;
+    eb->evaluation = KING_DEAD;
+    if(white){
+        eb->evaluation = -KING_DEAD;
+    }
+    eb->stalemate = 0;
+    return eb;
+}
+
 struct eval_board_array get_evaluated_potential_boards(struct board* b, int white){
+    if(is_king_dead(b, white)){
+        struct eval_board* eb = get_dead_king_eval_board(b, white);
+        struct eval_board_array reteba = (struct eval_board_array) {eb, 1};
+        return reteba;
+    }
     struct boardarray ba = get_potential_boards_board(b, white);
     struct eval_board* evs = (struct eval_board*) malloc(ba.len * sizeof(struct eval_board));
     for(int i = 0; i<ba.len; i++){
@@ -1093,66 +1129,24 @@ struct eval_board_array get_evaluated_potential_boards(struct board* b, int whit
     free(ba.arr);
     if(ret.len == 0){
         struct eval_board* stalemate_evs = (struct eval_board*) malloc(sizeof(struct eval_board));
-        evs->evaluation = 0;
-        *(evs->b) = copy_board(b);
-        evs->stalemate = 1;
+        stalemate_evs->evaluation = 0;
+        *(stalemate_evs->b) = copy_board(b);
+        stalemate_evs->stalemate = 1;
         ret = (struct eval_board_array) {stalemate_evs, 1};
     }
     return ret;
 }
 
-struct board_result max_board(struct board* b, int white, int depth, int orig_depth);
-
-struct board_result min_board(struct board* b, int white, int depth, int orig_depth){
-    if(depth == 0){
-        struct eval_board_array eba = get_evaluated_potential_boards(b, white);
-        if(eba.len == 0){
-            struct board_result empty = (struct board_result){NULL, NULL};
-            return empty;
-        }
-        struct eval_board *eb = &(eba.evs[0]);
-        for(int i = 0; i < eba.len; i++){
-            if(eba.evs[i].evaluation < eb->evaluation){
-                eb = &(eba.evs[i]);
-            }
-        }
-        struct eval_board *neb = (struct eval_board*) malloc(sizeof(struct eval_board));
-        *neb = copy_eval_board(eb);
+struct board_result minmax_board(struct board* b, int white, int depth, int orig_depth){
+    if(is_king_dead(b, white)){
+        struct eval_board* eb = get_dead_king_eval_board(b, white);
         struct board *prev = (struct board*) malloc(sizeof(struct board) * orig_depth);
-        struct board_result ret = {neb, prev};
-        for(int i = 0; i < eba.len; i++){
-            free(eba.evs[i].b);
+        for(int i = 0; i<depth; i++){
+            prev[i] = copy_board(b);
         }
-        free(eba.evs);
+        struct board_result ret = (struct board_result){eb, prev};
         return ret;
     }
-    struct boardarray ba = get_potential_boards_board(b, white);
-    struct board_result min_br = (struct board_result) {NULL, NULL};
-    int inited = 0;
-    for(int i = 0; i < ba.len; i++){
-        struct board_result br = max_board(&(ba.arr[i]), !white, depth-1, orig_depth);
-        if(br.eb != NULL){
-            if(!inited || min_br.eb->evaluation > br.eb->evaluation){
-                if(inited){
-                    free(min_br.previous);
-                    free(min_br.eb->b);
-                    free(min_br.eb);
-                }
-                inited = 1;
-                min_br = br;
-                min_br.previous[depth-1] = copy_board(&ba.arr[i]);
-            }else{
-                free(br.previous);
-                free(br.eb->b);
-                free(br.eb);
-            }
-        }
-    }
-    free(ba.arr);
-    return min_br;
-}
-
-struct board_result max_board(struct board* b, int white, int depth, int orig_depth){
     if(depth == 0){
         struct eval_board_array eba = get_evaluated_potential_boards(b, white);
         if(eba.len == 0){
@@ -1161,7 +1155,21 @@ struct board_result max_board(struct board* b, int white, int depth, int orig_de
         }
         struct eval_board *eb = &(eba.evs[0]);
         for(int i = 0; i < eba.len; i++){
-            if(eba.evs[i].evaluation > eb->evaluation){
+            if(eba.evs[i].evaluation == KING_DEAD){
+                int death_late_priority = -1;
+                if(white){
+                    death_late_priority = - death_late_priority;
+                }
+                eba.evs[i].evaluation += death_late_priority;
+            }
+            int eval_should_bigger = eb->evaluation;
+            int eval_smaller = eba.evs[i].evaluation;
+            if(!white){
+                int temp = eval_smaller;
+                eval_smaller = eval_should_bigger;
+                eval_should_bigger = temp;
+            }
+            if(eval_smaller > eval_should_bigger){
                 eb = &(eba.evs[i]);
             }
         }
@@ -1179,9 +1187,19 @@ struct board_result max_board(struct board* b, int white, int depth, int orig_de
     struct board_result max_br = (struct board_result) {NULL, NULL};
     int inited = 0;
     for(int i = 0; i < ba.len; i++){
-        struct board_result br = min_board(&(ba.arr[i]), !white, depth-1, orig_depth);
+        struct board_result br = minmax_board(&(ba.arr[i]), !white, depth-1, orig_depth);
         if(br.eb != NULL){
-            if(!inited || max_br.eb->evaluation < br.eb->evaluation){
+            int eval_should_bigger, eval_smaller;
+            if(inited){
+                eval_should_bigger = max_br.eb->evaluation;
+                eval_smaller = br.eb->evaluation;
+                if(!white){
+                    int temp = eval_smaller;
+                    eval_smaller = eval_should_bigger;
+                    eval_should_bigger = temp;
+                }
+            }
+            if(!inited || eval_should_bigger < eval_smaller){
                 if(inited){
                     free(max_br.previous);
                     free(max_br.eb->b);
@@ -1197,14 +1215,22 @@ struct board_result max_board(struct board* b, int white, int depth, int orig_de
             }
         }
     }
+    if(ba.len == 0){
+        struct eval_board* stalemate_evs = (struct eval_board*) malloc(sizeof(struct eval_board));
+        stalemate_evs->evaluation = 0;
+        *(stalemate_evs->b) = copy_board(b);
+        stalemate_evs->stalemate = 1;
+        struct board *prev = (struct board*) malloc(sizeof(struct board) * orig_depth);
+        max_br.eb = stalemate_evs;
+        max_br.previous = prev;
+        for(int i = 0; i<depth; i++){
+            max_br.previous[i] = copy_board(b);
+        }
+    }
     free(ba.arr);
     return max_br;
 }
 
 struct board_result minimax(struct board* b, int white, int depth){
-    if(white){
-        return max_board(b, white, depth, depth);
-    }else{
-        return min_board(b, !white, depth, depth);
-    }
+    return minmax_board(b, white, depth, depth);
 }

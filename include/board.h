@@ -55,6 +55,9 @@ struct board{
     struct squares_board squares;
     struct previous_moves white_moves;
     struct previous_moves black_moves;
+#ifdef DEBUG
+    char last_move[5];
+#endif
 };
 
 struct intarray{
@@ -119,9 +122,7 @@ int evaluate(struct board* b);
 
 struct eval_board_array get_evaluated_potential_boards(struct board* b, int white);
 
-struct board_result min_board(struct board* b, int white, int depth, int orig_depth);
-
-struct board_result max_board(struct board* b, int white, int depth, int orig_depth);
+struct board_result minmax_board(struct board* b, int white, int depth, int orig_depth);
 
 struct board_result minimax(struct board* b, int white, int depth);
 
