@@ -96,5 +96,8 @@ int main(){
     print_board(&(br.previous[0]));
     printf("\nPrePrevious board\n\n");
     print_board(&(br.previous[1]));
+    free(br.previous);
+    free(br.eb->b);
+    free(br.eb);
     return 0;
 }

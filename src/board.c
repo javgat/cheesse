@@ -78,6 +78,20 @@ struct board{
  
 struct board copy_board(struct board* b){
     struct board nb = *b;
+    /*
+    struct pieces_board wp = b->white_pieces;
+    struct pieces_board bp = b->black_pieces;
+    struct squares_board sq;
+    for(int i = 0; i < 64; i++){
+        sq.is_white[i] = b->squares.is_white[i];
+        sq.piece[i] = b->squares.piece[i];
+    }
+    if(&sq.piece[0] == &b->squares.piece[0]){
+        printf("Positions: %p %p\n", &sq.piece[0], &b->squares.piece[0]);fflush(stdout);
+    }
+    struct previous_moves wm = b->white_moves;
+    struct previous_moves bm = b->black_moves;
+    struct board nb = (struct board) {wp, bp, sq, wm, bm};*/
     return nb;
 }
 
@@ -944,7 +958,7 @@ struct boardarray get_potential_boards_board(struct board* b, int white){
     int b_index = 0;
     for(int i = 0; i < 6; i++){
         for(int j = 0; j < bas[i].len; j++){
-            boards[b_index] = bas[i].arr[j];
+            boards[b_index] = copy_board(&bas[i].arr[j]);
             b_index++;
         }
     }
@@ -959,6 +973,14 @@ struct eval_board{
     struct board* b;
     int evaluation;
 };
+
+struct eval_board copy_eval_board(struct eval_board* eb){
+    struct eval_board neb;
+    neb.b = (struct board*) malloc(sizeof(struct board));
+    *(neb.b) = copy_board(eb->b);
+    neb.evaluation = eb->evaluation;
+    return neb;
+}
 
 struct eval_board_array{
     struct eval_board* evs;
@@ -1003,17 +1025,13 @@ struct board_result min_board(struct board* b, int white, int depth, int orig_de
             }
         }
         struct eval_board *neb = (struct eval_board*) malloc(sizeof(struct eval_board));
-        *neb = *eb;
+        *neb = copy_eval_board(eb);
         struct board *prev = (struct board*) malloc(sizeof(struct board) * orig_depth);
         struct board_result ret = {neb, prev};
         for(int i = 0; i < eba.len; i++){
             free(eba.evs[i].b);
         }
         free(eba.evs);
-        printf("\n Heuristic father\n");fflush(stdout);
-        print_board(b);
-        printf("\n Heuristic winner\n");fflush(stdout);
-        print_board(ret.eb->b);
         return ret;
     }
     struct boardarray ba = get_potential_boards_board(b, white);
@@ -1025,6 +1043,7 @@ struct board_result min_board(struct board* b, int white, int depth, int orig_de
             if(!inited || min_br.eb->evaluation > br.eb->evaluation){
                 if(inited){
                     free(min_br.previous);
+                    free(min_br.eb->b);
                     free(min_br.eb);
                 }
                 inited = 1;
@@ -1032,6 +1051,7 @@ struct board_result min_board(struct board* b, int white, int depth, int orig_de
                 min_br.previous[depth-1] = copy_board(&ba.arr[i]);
             }else{
                 free(br.previous);
+                free(br.eb->b);
                 free(br.eb);
             }
         }
@@ -1054,17 +1074,13 @@ struct board_result max_board(struct board* b, int white, int depth, int orig_de
             }
         }
         struct eval_board *neb = (struct eval_board*) malloc(sizeof(struct eval_board));
-        *neb = *eb;
+        *neb = copy_eval_board(eb);
         struct board *prev = (struct board*) malloc(sizeof(struct board) * orig_depth);
         struct board_result ret = {neb, prev};
         for(int i = 0; i < eba.len; i++){
             free(eba.evs[i].b);
         }
         free(eba.evs);
-        printf("\n Heuristic father\n");fflush(stdout);
-        print_board(b);
-        printf("\n Heuristic winner\n");fflush(stdout);
-        print_board(ret.eb->b);
         return ret;
     }
     struct boardarray ba = get_potential_boards_board(b, white);
@@ -1076,7 +1092,7 @@ struct board_result max_board(struct board* b, int white, int depth, int orig_de
             if(!inited || max_br.eb->evaluation < br.eb->evaluation){
                 if(inited){
                     free(max_br.previous);
-                    //free(max_br.eb->b);
+                    free(max_br.eb->b);
                     free(max_br.eb);
                 }
                 inited = 1;
@@ -1084,7 +1100,7 @@ struct board_result max_board(struct board* b, int white, int depth, int orig_de
                 max_br.previous[depth-1] = copy_board(&ba.arr[i]);
             }else{
                 free(br.previous);
-                //free(br.eb->b);
+                free(br.eb->b);
                 free(br.eb);
             }
         }
@@ -1094,5 +1110,6 @@ struct board_result max_board(struct board* b, int white, int depth, int orig_de
 }
 
 struct board_result minimax(struct board* b, int white, int depth){
-    return max_board(b, white, depth, depth);
+    struct board_result br = max_board(b, white, depth, depth);
+    return br;
 }
