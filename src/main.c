@@ -86,16 +86,20 @@ void init_board(struct board* b){
     return;
 }
 
-int main(){
+int main(int argc, char *argv[]){
+    int rec = 2;
+    if(argc > 1){
+        rec = atoi(argv[1]);
+    }
     struct board b;
     init_board(&b);
-    struct board_result br = minimax(&b, 1, 2);
+    struct board_result br = minimax(&b, 1, rec);
     printf("\nFinal board\n\n");
     print_board(br.eb->b);
-    printf("\nPrevious board\n\n");
-    print_board(&(br.previous[0]));
-    printf("\nPrePrevious board\n\n");
-    print_board(&(br.previous[1]));
+    for(int i = 0; i < rec; i++){
+        printf("\nPrevious board\n\n");
+        print_board(&(br.previous[i]));
+    }
     free(br.previous);
     free(br.eb->b);
     free(br.eb);
