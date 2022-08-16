@@ -87,6 +87,8 @@ struct intarray possible_piece_moves(struct board* b, struct piece_id* id);
 
 void kill_piece(struct board* b, int new_position);
 
+int* get_piece_array(struct pieces_board* pb, enum board_piece type);
+
 void move_piece(struct board* b, struct piece_id* id, int prev_position, int new_position);
 
 void apply_promotion(struct board* b, int is_white, enum board_piece piece_type);
@@ -100,6 +102,7 @@ struct boardarray get_potential_boards_board(struct board* b, int white);
 struct eval_board{
     struct board* b;
     int evaluation;
+    int stalemate;
 };
 
 struct eval_board_array{

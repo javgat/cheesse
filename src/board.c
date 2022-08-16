@@ -1,8 +1,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
-
-#define PAWN_SQ {0, 0, 0, 0, 0, 0, 0, 0, 78, 83, 86, 73, 102, 82, 85, 90, 7, 29, 21, 44, 40, 31, 44, 7, -17, 16, -2, 15, 14, 0, 15, -13, -26, 3, 10, 9, 6, 1, 0, -23, -22, 9, 5, -11, -10, -2, 3, -19, -31, 8, -7, -37, -36, -14, 3, -31, 0, 0, 0, 0, 0, 0, 0, 0}
+#include "tables.h"
 
 enum board_piece{
     none = 0,
@@ -80,20 +79,6 @@ struct board{
  
 struct board copy_board(struct board* b){
     struct board nb = *b;
-    /*
-    struct pieces_board wp = b->white_pieces;
-    struct pieces_board bp = b->black_pieces;
-    struct squares_board sq;
-    for(int i = 0; i < 64; i++){
-        sq.is_white[i] = b->squares.is_white[i];
-        sq.piece[i] = b->squares.piece[i];
-    }
-    if(&sq.piece[0] == &b->squares.piece[0]){
-        printf("Positions: %p %p\n", &sq.piece[0], &b->squares.piece[0]);fflush(stdout);
-    }
-    struct previous_moves wm = b->white_moves;
-    struct previous_moves bm = b->black_moves;
-    struct board nb = (struct board) {wp, bp, sq, wm, bm};*/
     return nb;
 }
 
@@ -495,6 +480,7 @@ struct intarray possible_queen_moves(struct board* b, struct piece_id* id){
         }
     }
     // Bishop like moves
+    pointing_to = cell;
     while(pointing_to > 7 && pointing_to%8 > 0){
         pointing_to = pointing_to - 9;
         if(b->squares.piece[pointing_to] != none && b->squares.is_white[pointing_to] == is_white){
@@ -733,6 +719,28 @@ void kill_piece(struct board* b, int new_position){
     b->squares.piece[new_position] = none;
 }
 
+int* get_piece_array(struct pieces_board* pb, enum board_piece type){
+    switch(type){
+        case pawn:
+            return pb->pawn;
+        case knight:
+            return pb->knight;
+        case bishop:
+            return pb->bishop;
+        case rook:
+            return pb->rook;
+        case queen:
+            return pb->queen;
+        default: {
+#ifdef EMPTY_MALLOC
+            printf("EMPTY MALLOC");fflush(stdout);
+#endif
+            int* empty = (int*)malloc(0);
+            return empty;
+        }
+    }
+}
+
 void move_piece(struct board* b, struct piece_id* id, int prev_position, int new_position){
     // assert: the move is valid
 #ifdef DEBUG
@@ -759,6 +767,8 @@ void move_piece(struct board* b, struct piece_id* id, int prev_position, int new
     b->squares.piece[new_position] = b->squares.piece[prev_position];
     b->squares.piece[prev_position] = none;
     b->squares.is_white[new_position] = is_white;
+    int* parr = get_piece_array(pb, id->type);
+    parr[id->index] = new_position;
     int move = new_position - prev_position;
     if(id->type == king){ // check castling and if it is, move rook
         if(move == -2 || move == 2){// castling
@@ -974,6 +984,7 @@ struct boardarray get_potential_boards_board(struct board* b, int white){
 struct eval_board{
     struct board* b;
     int evaluation;
+    int stalemate;
 };
 
 struct eval_board copy_eval_board(struct eval_board* eb){
@@ -981,6 +992,7 @@ struct eval_board copy_eval_board(struct eval_board* eb){
     neb.b = (struct board*) malloc(sizeof(struct board));
     *(neb.b) = copy_board(eb->b);
     neb.evaluation = eb->evaluation;
+    neb.stalemate = eb->stalemate;
     return neb;
 }
 
@@ -995,25 +1007,74 @@ struct board_result{
 };
 
 int evaluate(struct board* b){
-    int pawn_sq[] = PAWN_SQ;
     int points = 0;
-    for(int i = 0; i < 8; i++){
-        int pb = b->black_pieces.pawn[i];
-        int pw = b->white_pieces.pawn[i];
-        if(pb != 64){
-            int pos = pb;
-            pos = pos - pos%8-1 + 8-(pos%8+1);
-            points = points - 100 - pawn_sq[pos];
-        }else{
-            points += 100;
-        }
-        if(pw != 64){
-            if(pw == 16){
-                points += 1000;
+    int piece_points[] = PIECE_VALS;
+    // PAWNS
+    for(int type_index = 0; type_index < 6; type_index++){
+        int piece_val = piece_points[type_index];
+        int* wp = b->white_pieces.pawn;
+        int* bp = b->black_pieces.pawn;
+        int len_piece = sizeof(b->white_pieces.pawn)/sizeof(int);
+        int *piece_sq;
+        switch(type_index){
+            case 0:
+                wp = b->white_pieces.pawn;
+                bp = b->black_pieces.pawn;
+                int psqp[] = PAWN_SQ;
+                piece_sq = psqp;
+                len_piece = sizeof(b->white_pieces.pawn)/sizeof(int);
+                break;
+            case 1:
+                wp = b->white_pieces.knight;
+                bp = b->black_pieces.knight;
+                int psqn[] = KNIGHT_SQ;
+                piece_sq = psqn;
+                len_piece = sizeof(b->white_pieces.knight)/sizeof(int);
+                break;
+            case 2:
+                wp = b->white_pieces.bishop;
+                bp = b->black_pieces.bishop;
+                int psqb[] = BISHOP_SQ;
+                piece_sq = psqb;
+                len_piece = sizeof(b->white_pieces.bishop)/sizeof(int);
+                break;
+            case 3:
+                wp = b->white_pieces.rook;
+                bp = b->black_pieces.rook;
+                int psqr[] = ROOK_SQ;
+                piece_sq = psqr;
+                len_piece = sizeof(b->white_pieces.rook)/sizeof(int);
+                break;
+            case 4:
+                wp = b->white_pieces.queen;
+                bp = b->black_pieces.queen;
+                int psqq[] = QUEEN_SQ;
+                piece_sq = psqq;
+                len_piece = sizeof(b->white_pieces.queen)/sizeof(int);
+                break;
+            case 5:{
+                int wkarr[] = {b->white_pieces.king};
+                int bkarr[] = {b->black_pieces.king};
+                wp = wkarr;
+                bp = bkarr;
+                int psqk[] = KING_SQ;
+                piece_sq = psqk;
+                len_piece = 1;
             }
-            points = points + 100 + pawn_sq[63-pw];
-        }else{
-            points -= 100;
+        }
+        for(int i = 0; i < len_piece; i++){
+            int pb = bp[i];
+            int pw = wp[i];
+            if(pb != 64){
+                points -= (piece_val + piece_sq[pb]);
+            }else{
+                points += piece_val;
+            }
+            if(pw != 64){
+                points += piece_val + piece_sq[63-pw];
+            }else{
+                points -= piece_val;
+            }
         }
     }
     return points; // 1 win white, -1 win black
@@ -1026,9 +1087,17 @@ struct eval_board_array get_evaluated_potential_boards(struct board* b, int whit
         evs[i].b = (struct board*) malloc(sizeof(struct board));
         *(evs[i].b) = copy_board(&(ba.arr[i]));
         evs[i].evaluation = evaluate(evs[i].b);
+        evs[i].stalemate = 0;
     }
     struct eval_board_array ret = (struct eval_board_array) {evs, ba.len};
     free(ba.arr);
+    if(ret.len == 0){
+        struct eval_board* stalemate_evs = (struct eval_board*) malloc(sizeof(struct eval_board));
+        evs->evaluation = 0;
+        *(evs->b) = copy_board(b);
+        evs->stalemate = 1;
+        ret = (struct eval_board_array) {stalemate_evs, 1};
+    }
     return ret;
 }
 
@@ -1058,7 +1127,7 @@ struct board_result min_board(struct board* b, int white, int depth, int orig_de
         return ret;
     }
     struct boardarray ba = get_potential_boards_board(b, white);
-    struct board_result min_br;
+    struct board_result min_br = (struct board_result) {NULL, NULL};
     int inited = 0;
     for(int i = 0; i < ba.len; i++){
         struct board_result br = max_board(&(ba.arr[i]), !white, depth-1, orig_depth);
@@ -1107,7 +1176,7 @@ struct board_result max_board(struct board* b, int white, int depth, int orig_de
         return ret;
     }
     struct boardarray ba = get_potential_boards_board(b, white);
-    struct board_result max_br;
+    struct board_result max_br = (struct board_result) {NULL, NULL};
     int inited = 0;
     for(int i = 0; i < ba.len; i++){
         struct board_result br = min_board(&(ba.arr[i]), !white, depth-1, orig_depth);
@@ -1133,6 +1202,9 @@ struct board_result max_board(struct board* b, int white, int depth, int orig_de
 }
 
 struct board_result minimax(struct board* b, int white, int depth){
-    struct board_result br = max_board(b, white, depth, depth);
-    return br;
+    if(white){
+        return max_board(b, white, depth, depth);
+    }else{
+        return min_board(b, !white, depth, depth);
+    }
 }
