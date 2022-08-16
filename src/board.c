@@ -2,7 +2,7 @@
 #include <string.h>
 #include <stdio.h>
 
-#define PAWN_SQ {0, 0, 0, 0, 0, 0, 0, 0, 78, 83, 86, 73, 102, 82, 85, 90, 7, 29, 21, 44, 40,  31, 44, 7, -17, 16, -2, 15, 14, 0, 15, -13, -26, 3, 10, 9, 6, 1, 0, -23, -22, 9, 5, -11, -10, -2, 3, -19, -31, 8, -7, -37, -36, -14, 3, -31, 0, 0, 0, 0, 0, 0, 0, 0}
+#define PAWN_SQ {0, 0, 0, 0, 0, 0, 0, 0, 78, 83, 86, 73, 102, 82, 85, 90, 7, 29, 21, 44, 40, 31, 44, 7, -17, 16, -2, 15, 14, 0, 15, -13, -26, 3, 10, 9, 6, 1, 0, -23, -22, 9, 5, -11, -10, -2, 3, -19, -31, 8, -7, -37, -36, -14, 3, -31, 0, 0, 0, 0, 0, 0, 0, 0}
 
 enum board_piece{
     none = 0,
@@ -1001,13 +1001,16 @@ int evaluate(struct board* b){
         int pb = b->black_pieces.pawn[i];
         int pw = b->white_pieces.pawn[i];
         if(pb != 64){
-            int pos = 63-pb;
+            int pos = pb;
             pos = pos - pos%8-1 + 8-(pos%8+1);
             points = points - 100 - pawn_sq[pos];
         }else{
             points += 100;
         }
         if(pw != 64){
+            if(pw == 16){
+                points += 1000;
+            }
             points = points + 100 + pawn_sq[63-pw];
         }else{
             points -= 100;
