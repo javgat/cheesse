@@ -1,5 +1,6 @@
+#define KING_DEAD 6000000
 // pawn, knight, bishop, rook, queen, king
-#define PIECE_VALS {100, 280, 320, 479, 929, 60000}
+#define PIECE_VALS {1000, 2800, 3200, 4790, 9290, 600000}
 #define PAWN_SQ {\
 0, 0, 0, 0, 0, 0, 0, 0,\
 78, 83, 86, 73, 102, 82, 85, 90,\

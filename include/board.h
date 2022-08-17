@@ -56,7 +56,7 @@ struct board{
     struct previous_moves white_moves;
     struct previous_moves black_moves;
 #ifdef DEBUG
-    char last_move[5];
+    int last_move[2];
 #endif
 };
 
@@ -64,6 +64,8 @@ struct intarray{
     int* arr;
     int len;
 };
+
+void init_board(struct board* b);
 
 struct boardarray{
     struct board* arr;
