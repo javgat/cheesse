@@ -3,3 +3,4 @@
 *.o
 *.temp.*
 bin
+*.log
