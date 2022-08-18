@@ -32,7 +32,7 @@ int main(int argc, char *argv[]){
         printf("Evaluation: %d\n", br.eb->evaluation);
         //struct board old_b = b;
         if(rec > 0){
-            copy_board(&br.previous[rec-1], &b);
+            copy_board(&br.previous.arr[rec-1], &b);
         }else{
             copy_board(br.eb->b, &b);
         }
@@ -42,7 +42,7 @@ int main(int argc, char *argv[]){
         //}
         if(rec > 0){
             printf("\nNext move\n\n");
-            print_board(&br.previous[rec-1], true);
+            print_board(&br.previous.arr[rec-1], true);
         }
         if(br.eb->draw){
             printf("\nDRAW\n");
@@ -53,9 +53,8 @@ int main(int argc, char *argv[]){
         fill_cell_name(b.last_move[0], move_from_st);
         fill_cell_name(b.last_move[1], move_to_st);
         printf("%s %s\n", move_from_st, move_to_st);fflush(stdout);
-        free(br.previous);
-        free(br.eb->b);
-        free(br.eb);
+        destroy_boardarray(&br.previous);
+        destroy_eval_board(br.eb);
         if(rec > 0){
             //printf("\nNext move:\n\n");
             //print_board(&b);

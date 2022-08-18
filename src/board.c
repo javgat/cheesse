@@ -3,11 +3,14 @@
 #include <stdio.h>
 #include <stdbool.h>
 #include "tables.h"
-#include "piece.h"
 #include "board.h"
 
 void copy_board(struct board* src, struct board* dst){
     *dst = *src;
+#ifndef IGNORE_PREV_BOARDS
+    dst->prev_boards.ignore = arraylist_clone(src->prev_boards.ignore);
+    dst->prev_boards.same_pieces = arraylist_clone(src->prev_boards.same_pieces);
+#endif
 }
 
 void fill_default_board(struct board* b){
@@ -48,7 +51,10 @@ void fill_default_board(struct board* b){
     b->piece[59] = king;
     b->last_move[0] = -1;
     b->last_move[1] = -1;
-    return;
+#ifndef IGNORE_PREV_BOARDS
+    b->prev_boards.ignore = arraylist_create();
+    b->prev_boards.same_pieces = arraylist_create();
+#endif
 }
 
 struct board* new_board_default(){
@@ -75,6 +81,49 @@ void print_board(struct board* b, bool white_on_top){
             printf("\n");
         }
     }
+}
+
+bool board_are_equal(struct board* b, struct board* o){
+    for(int i = 0; i < 64; i++){
+        if(b->piece[i] != o->piece[i] || b->is_white[i] != o->is_white[i]){
+            return false;
+        }
+    }
+    for(int i = 0; i < 8; i++){
+        if(b->black_moves.just_two_squared[i] != o->black_moves.just_two_squared[i] ||\
+            b->white_moves.just_two_squared[i] != o->white_moves.just_two_squared[i]){
+            return false;
+        }
+    }
+    if(b->black_moves.moved_king != o->black_moves.moved_king ||\
+        b->black_moves.moved_rook_far != o->black_moves.moved_rook_far ||\
+        b->black_moves.moved_rook_near != o->black_moves.moved_rook_near){
+        return false;
+    }
+    if(b->white_moves.moved_king != o->white_moves.moved_king ||\
+        b->white_moves.moved_rook_far != o->white_moves.moved_rook_far ||\
+        b->white_moves.moved_rook_near != o->white_moves.moved_rook_near){
+        return false;
+    }
+    return true;
+}
+
+void destroy_board(struct board* b){
+#ifndef IGNORE_PREV_BOARDS
+    arraylist_destroy(b->prev_boards.ignore);
+    arraylist_destroy(b->prev_boards.same_pieces);
+#endif
+    free(b);
+}
+
+void destroy_boardarray(struct boardarray* b){
+#ifndef IGNORE_PREV_BOARDS
+    for(int i=0; i < b->len; i++){
+        arraylist_destroy(b->arr[i].prev_boards.ignore);
+        arraylist_destroy(b->arr[i].prev_boards.same_pieces);
+    }
+#endif
+    free(b->arr);
 }
 
 struct boardarray get_empty_boardarray(){
@@ -689,6 +738,24 @@ void apply_promotion(struct board* b, bool is_white, enum board_piece piece_type
     }
 }
 
+#ifndef IGNORE_PREV_BOARDS
+int count_repetitions(struct board* b){
+    int times_board = 1;
+    if(b->prev_boards.same_pieces->size < 3){
+        return 1;
+    }
+    for(int i = 0; i < b->prev_boards.same_pieces->size; i++){
+        if(board_are_equal(b, arraylist_get(b->prev_boards.same_pieces, i))){
+            times_board++;
+            if(times_board == 5){
+                return 5;
+            }
+        }
+    }
+    return times_board;
+}
+#endif
+
 struct boardarray get_potential_boards_moving_piece(struct board* b, int cell){
     int is_white = b->is_white[cell];
     enum board_piece ptype = b->piece[cell];
@@ -726,7 +793,21 @@ struct boardarray get_potential_boards_moving_piece(struct board* b, int cell){
             }
         }
         int new_position = cell + moves[i];
+#ifndef IGNORE_PREV_BOARDS
+        bool has_killed = false;
+        if(nb->piece[new_position] != none){
+            has_killed = true;
+        }
+#endif
         move_piece(nb, cell, new_position);
+#ifndef IGNORE_PREV_BOARDS
+        if(has_killed){
+            for(int j = nb->prev_boards.same_pieces->size; j > 0; j--){
+                arraylist_add(nb->prev_boards.ignore, arraylist_pop(nb->prev_boards.same_pieces));
+            }
+        }
+        arraylist_add(nb->prev_boards.same_pieces, (void*) b);
+#endif
         if(ptype == pawn && (new_position <= 7 || new_position >= 56)){ // promotion
             copy_board(nb, &boards[board_pos]);
             struct board* nb2 = &(boards[board_pos]);
@@ -763,9 +844,14 @@ struct boardarray get_potential_boards_board(struct board* b, bool white){
     }
     struct boardarray returnable = (struct boardarray){boards, cant_boards};
     for(int i = 0; i < 64; i++){
-        free(bas[i].arr);
+        destroy_boardarray(&bas[i]);
     }
     return returnable;
+}
+
+void destroy_eval_board(struct eval_board* eb){
+    destroy_board(eb->b);
+    free(eb);
 }
 
 void copy_eval_board(struct eval_board* src, struct eval_board* dst){
@@ -779,6 +865,13 @@ struct eval_board* new_eval_board_copy(struct eval_board* src){
     dst->b = (struct board*) malloc(sizeof(struct board));
     copy_eval_board(src, dst);
     return dst;
+}
+
+void destroy_eval_board_array(struct eval_board_array* eba){
+    for(int i = 0; i < eba->len; i++){
+        destroy_board(eba->evs[i].b);
+    }
+    free(eba->evs);
 }
 
 void fill_eval_board(struct eval_board* eb, struct board* b, int evaluation, bool draw){
@@ -887,11 +980,20 @@ struct eval_board_array get_evaluated_potential_boards(struct board* b, bool whi
     struct boardarray ba = get_potential_boards_board(b, white);
     struct eval_board* evs = (struct eval_board*) malloc(ba.len * sizeof(struct eval_board));
     for(int i = 0; i<ba.len; i++){
-        int eval = evaluate(&ba.arr[i]);
-        fill_eval_board(&evs[i], &(ba.arr[i]), eval, false);
+#ifndef IGNORE_PREV_BOARDS
+        int reps = count_repetitions(b);
+#else
+        int reps = 0;
+#endif
+        if(reps >= 3){
+            fill_eval_board(&evs[i], &(ba.arr[i]), 0, true);
+        }else{
+            int eval = evaluate(&ba.arr[i]);
+            fill_eval_board(&evs[i], &(ba.arr[i]), eval, false);
+        }
     }
     struct eval_board_array ret = (struct eval_board_array) {evs, ba.len};
-    free(ba.arr);
+    destroy_boardarray(&ba);
     if(ret.len == 0){
         struct eval_board* draw_evs = new_eval_board_values(b, 0, true);
         ret = (struct eval_board_array) {draw_evs, 1};
@@ -930,11 +1032,9 @@ struct board_result minmax_board(struct board* b, bool white, int depth, int ori
         }
         struct eval_board *neb = new_eval_board_copy(eb);
         struct board *prev = (struct board*) malloc(sizeof(struct board) * orig_depth);
-        struct board_result ret = {neb, prev};
-        for(int i = 0; i < eba.len; i++){
-            free(eba.evs[i].b);
-        }
-        free(eba.evs);
+        struct boardarray ba = (struct boardarray) {prev, orig_depth};
+        struct board_result ret = {neb, ba};
+        destroy_eval_board_array(&eba);
         return ret;
     }
     struct boardarray ba = get_potential_boards_board(b, white);
@@ -965,17 +1065,15 @@ struct board_result minmax_board(struct board* b, bool white, int depth, int ori
             }
             if(!inited || eval_should_bigger < eval_smaller){
                 if(inited){
-                    free(max_br.previous);
-                    free(max_br.eb->b);
-                    free(max_br.eb);
+                    destroy_boardarray(&max_br.previous);
+                    destroy_eval_board(max_br.eb);
                 }
                 inited = 1;
                 max_br = br;
-                copy_board(&ba.arr[i], &max_br.previous[depth-1]);
+                copy_board(&ba.arr[i], &max_br.previous.arr[depth-1]);
             }else{
-                free(br.previous);
-                free(br.eb->b);
-                free(br.eb);
+                destroy_boardarray(&br.previous);
+                destroy_eval_board(br.eb);
             }
         }
     }
@@ -986,13 +1084,12 @@ struct board_result minmax_board(struct board* b, bool white, int depth, int ori
         draw_evs->draw = 1;
         struct board *prev = (struct board*) malloc(sizeof(struct board) * orig_depth);
         max_br.eb = draw_evs;
-        max_br.previous = prev;
+        max_br.previous = (struct boardarray) {prev, orig_depth};
         for(int i = 0; i<depth; i++){
-            copy_board(b, &max_br.previous[i]);
+            copy_board(b, &max_br.previous.arr[i]);
         }
     }
-    //printf("Chosen %d\n", max_br.eb->evaluation);fflush(stdout);
-    free(ba.arr);
+    destroy_boardarray(&ba);
     return max_br;
 }
 
