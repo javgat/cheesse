@@ -46,6 +46,8 @@ void fill_default_board(struct board* b){
     b->piece[60] = queen;
     b->piece[3] = king;
     b->piece[59] = king;
+    b->last_move[0] = -1;
+    b->last_move[1] = -1;
     return;
 }
 
@@ -619,11 +621,13 @@ void move_piece(struct board* b, int prev_position, int new_position){
     // assert: the move is valid
 #ifdef DEBUG
     if(new_position > 63){
-        fprintf(stderr, "Invalid new position of %d type from %d to %d\n", b->piece[prev_position], prev_position, new_position); fflush(stderr);
+        fprintf(stderr, "Invalid new position of %d type from %d to %d\n", b->piece[prev_position], prev_position, new_position);fflush(stderr);
     }
+    b->last_debug_move[0] = prev_position;
+    b->last_debug_move[1] = new_position;
+#endif
     b->last_move[0] = prev_position;
     b->last_move[1] = new_position;
-#endif
     int is_white = b->is_white[prev_position];
     struct previous_moves* pm = &(b->black_moves);
     struct previous_moves* enemy_pm = &(b->white_moves);
@@ -660,6 +664,8 @@ void move_piece(struct board* b, int prev_position, int new_position){
                 rook_new = new_position - 1;
             }
             move_piece(b, rook_prev, rook_new);
+            b->last_move[0] = prev_position; // last move should still be the king
+            b->last_move[1] = new_position;
         }
     }
     memset(pm->just_two_squared, 0, sizeof(pm->just_two_squared));
@@ -765,7 +771,7 @@ struct boardarray get_potential_boards_board(struct board* b, bool white){
 void copy_eval_board(struct eval_board* src, struct eval_board* dst){
     copy_board(src->b, dst->b);
     dst->evaluation = src->evaluation;
-    dst->stalemate = src->stalemate;
+    dst->draw = src->draw;
 }
 
 struct eval_board* new_eval_board_copy(struct eval_board* src){
@@ -775,16 +781,16 @@ struct eval_board* new_eval_board_copy(struct eval_board* src){
     return dst;
 }
 
-void fill_eval_board(struct eval_board* eb, struct board* b, int evaluation, bool stalemate){
+void fill_eval_board(struct eval_board* eb, struct board* b, int evaluation, bool draw){
     eb->b = (struct board*) malloc(sizeof(struct board));
     copy_board(b, eb->b);
-    eb->stalemate = stalemate;
+    eb->draw = draw;
     eb->evaluation = evaluation;
 }
 
-struct eval_board* new_eval_board_values(struct board* b, int evaluation, bool stalemate){
+struct eval_board* new_eval_board_values(struct board* b, int evaluation, bool draw){
     struct eval_board* eb = (struct eval_board*) malloc(sizeof(struct eval_board));
-    fill_eval_board(eb, b, evaluation, stalemate);
+    fill_eval_board(eb, b, evaluation, draw);
     return eb;
 }
 
@@ -832,8 +838,9 @@ int evaluate(struct board* b){
                 }
                 break;
             default:
-                fprintf(stderr, "Evaluation type piece incorrect\n");
+                fprintf(stderr, "Evaluation type piece incorrect.\n");
                 fflush(stdout);
+                piece_sq = psqp;
         }
         if(b->is_white[i]){
             subpoints = subpoints + piece_sq[63-i];
@@ -886,8 +893,8 @@ struct eval_board_array get_evaluated_potential_boards(struct board* b, bool whi
     struct eval_board_array ret = (struct eval_board_array) {evs, ba.len};
     free(ba.arr);
     if(ret.len == 0){
-        struct eval_board* stalemate_evs = new_eval_board_values(b, 0, true);
-        ret = (struct eval_board_array) {stalemate_evs, 1};
+        struct eval_board* draw_evs = new_eval_board_values(b, 0, true);
+        ret = (struct eval_board_array) {draw_evs, 1};
     }
     return ret;
 }
@@ -973,12 +980,12 @@ struct board_result minmax_board(struct board* b, bool white, int depth, int ori
         }
     }
     if(ba.len == 0){
-        struct eval_board* stalemate_evs = (struct eval_board*) malloc(sizeof(struct eval_board));
-        stalemate_evs->evaluation = 0;
-        copy_board(b, stalemate_evs->b);
-        stalemate_evs->stalemate = 1;
+        struct eval_board* draw_evs = (struct eval_board*) malloc(sizeof(struct eval_board));
+        draw_evs->evaluation = 0;
+        copy_board(b, draw_evs->b);
+        draw_evs->draw = 1;
         struct board *prev = (struct board*) malloc(sizeof(struct board) * orig_depth);
-        max_br.eb = stalemate_evs;
+        max_br.eb = draw_evs;
         max_br.previous = prev;
         for(int i = 0; i<depth; i++){
             copy_board(b, &max_br.previous[i]);

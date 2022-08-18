@@ -12,15 +12,32 @@ struct previous_moves{
     bool just_two_squared[8];
 };
 
+#ifndef PREV_BOARDS
+struct previous_boards;
+#endif
+
 struct board{
     enum board_piece piece[64];
     bool is_white[64]; // if piece[i] == none, whatever is ok
     struct previous_moves white_moves;
     struct previous_moves black_moves;
-#ifdef DEBUG
     int last_move[2];
+#ifndef PREV_BOARDS
+    struct previous_boards prev_boards;
+#endif
+#ifdef DEBUG
+    int last_debug_move[2];
 #endif
 };
+
+#ifndef PREV_BOARDS
+struct previous_boards{
+    struct board** same_pieces;
+    int len_same_pieces;
+    struct board** ignore;
+    int len_ignore;
+};
+#endif
 
 void copy_board(struct board* src, struct board* dst);
 
@@ -73,7 +90,7 @@ struct boardarray get_potential_boards_board(struct board* b, bool white);
 struct eval_board{
     struct board* b;
     int evaluation;
-    bool stalemate;
+    bool draw;
 };
 
 void copy_eval_board(struct eval_board* src, struct eval_board* dst);

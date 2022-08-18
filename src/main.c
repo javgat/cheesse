@@ -44,17 +44,15 @@ int main(int argc, char *argv[]){
             printf("\nNext move\n\n");
             print_board(&br.previous[rec-1], true);
         }
-        if(br.eb->stalemate){
-            printf("\nSTALEMATE\n");
+        if(br.eb->draw){
+            printf("\nDRAW\n");
             break;
         }
-#ifdef DEBUG
         char move_from_st[3] = "";
         char move_to_st[3] = "";
         fill_cell_name(b.last_move[0], move_from_st);
         fill_cell_name(b.last_move[1], move_to_st);
         printf("%s %s\n", move_from_st, move_to_st);fflush(stdout);
-#endif
         free(br.previous);
         free(br.eb->b);
         free(br.eb);
