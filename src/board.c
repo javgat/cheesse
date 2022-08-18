@@ -119,8 +119,12 @@ void destroy_board(struct board* b){
 void destroy_boardarray(struct boardarray* b){
 #ifndef IGNORE_PREV_BOARDS
     for(int i=0; i < b->len; i++){
-        arraylist_destroy(b->arr[i].prev_boards.ignore);
-        arraylist_destroy(b->arr[i].prev_boards.same_pieces);
+        if(b->arr[i].prev_boards.ignore != NULL){
+            arraylist_destroy(b->arr[i].prev_boards.ignore);
+        }
+        if(b->arr[i].prev_boards.same_pieces != NULL){
+            arraylist_destroy(b->arr[i].prev_boards.same_pieces);
+        }
     }
 #endif
     free(b->arr);
@@ -1032,6 +1036,12 @@ struct board_result minmax_board(struct board* b, bool white, int depth, int ori
         }
         struct eval_board *neb = new_eval_board_copy(eb);
         struct board *prev = (struct board*) malloc(sizeof(struct board) * orig_depth);
+#ifndef IGNORE_PREV_BOARDS
+        for(int i = 0; i < orig_depth; i++){
+            prev[i].prev_boards.ignore = NULL;
+            prev[i].prev_boards.same_pieces = NULL;
+        }
+#endif
         struct boardarray ba = (struct boardarray) {prev, orig_depth};
         struct board_result ret = {neb, ba};
         destroy_eval_board_array(&eba);
@@ -1040,10 +1050,8 @@ struct board_result minmax_board(struct board* b, bool white, int depth, int ori
     struct boardarray ba = get_potential_boards_board(b, white);
     struct board_result max_br = (struct board_result) {NULL, NULL};
     int inited = 0;
-    //printf("Evaluations: ");fflush(stdout);
     for(int i = 0; i < ba.len; i++){
         struct board_result br = minmax_board(&(ba.arr[i]), !white, depth-1, orig_depth);
-        //printf("%d ", br.eb->evaluation);fflush(stdout);
         if(br.eb != NULL){
             int multiplier = -1;
             if(!white){
