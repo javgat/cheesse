@@ -22,57 +22,38 @@ int main(int argc, char *argv[]){
     if(argc > 1){
         rec = atoi(argv[1]);
     }
+    struct board* ib = new_board_default();
     struct board b;
-    init_board(&b);
-    while(1){
-        struct board_result br = minimax(&b, 1, rec);
+    copy_board(ib, &b);
+    while(true){
+        struct board_result br = minimax(&b, true, rec);
         //printf("\nFinal board\n\n");
         //print_board(br.eb->b);
         printf("Evaluation: %d\n", br.eb->evaluation);
-        struct board old_b = b;
+        //struct board old_b = b;
         if(rec > 0){
-            b = copy_board(&br.previous[rec-1]);
+            copy_board(&br.previous[rec-1], &b);
         }else{
-            b = copy_board(br.eb->b);
+            copy_board(br.eb->b, &b);
         }
-        for(int i = 0; i < rec; i++){
-            printf("\nPreboard %d\n\n", i);
-            print_board(&br.previous[i]);
+        //for(int i = 0; i < rec; i++){
+        //    printf("\nPreboard %d\n\n", i);
+        //    print_board(&br.previous[i], true);
+        //}
+        if(rec > 0){
+            printf("\nNext move\n\n");
+            print_board(&br.previous[rec-1], true);
         }
-        enum board_piece bps[] = {pawn, knight, bishop, rook, queen};
-        int cant_pieces[] = {8, 10, 10, 10, 9};
-        int no_change = 1;
-        for(int i = 0; i < 5; i++){
-            int *oparr = get_piece_array(&old_b.white_pieces, bps[i]);
-            int *parr = get_piece_array(&b.white_pieces, bps[i]);
-            for(int j = 0; j < cant_pieces[i]; j++){
-                if(oparr[j] != parr[j]){
-                    no_change = 0;
-                    char move_from_st[3] = "";
-                    char move_to_st[3] = "";
-                    fill_cell_name(oparr[j], move_from_st);
-                    fill_cell_name(parr[j], move_to_st);
-                    printf("%s %s\n", move_from_st, move_to_st);fflush(stdout);
-                }
-            }
-        }
-        if(old_b.white_pieces.king != b.white_pieces.king){
-            no_change = 0;
-            char move_from_stkg[3] = "";
-            char move_to_stkg[3] = "";
-            fill_cell_name(old_b.white_pieces.king, move_from_stkg);
-            fill_cell_name(b.white_pieces.king, move_to_stkg);
-            printf("%s %s\n", move_from_stkg, move_to_stkg);fflush(stdout);
-        }
-        if(no_change && br.eb->stalemate){
+        if(br.eb->stalemate){
             printf("\nSTALEMATE\n");
-            return 0;
-        }
-        if(no_change){
-            printf("ERROR NO CHANGE\n");
+            break;
         }
 #ifdef DEBUG
-        printf("LAST MOVE: FROM %d TO %d\n", b.last_move[0], b.last_move[1]);
+        char move_from_st[3] = "";
+        char move_to_st[3] = "";
+        fill_cell_name(b.last_move[0], move_from_st);
+        fill_cell_name(b.last_move[1], move_to_st);
+        printf("%s %s\n", move_from_st, move_to_st);fflush(stdout);
 #endif
         free(br.previous);
         free(br.eb->b);
@@ -87,12 +68,9 @@ int main(int argc, char *argv[]){
         from = get_cell_id(from_st);
         to = get_cell_id(to_st);
         printf("moving from %d to %d\n", from, to);
-        enum board_piece type = b.squares.piece[from];
-        int white = b.squares.is_white[from];
-        struct piece_id piece_id = {type, white, 0};
-        move_piece(&b, &piece_id, from, to);
+        move_piece(&b, from, to);
         printf("Moved board:\n\n");
-        print_board(&b);
+        print_board(&b, true);
         printf("\n");
     }
     return 0;

@@ -1,5 +1,5 @@
 CXX       := gcc
-CXX_FLAGS := -Wall -g
+CXX_FLAGS := -Wall -g -D DEBUG
 
 BIN     := bin
 SRC     := src
@@ -16,6 +16,7 @@ run: clean all
 	./$(BIN)/$(EXECUTABLE)
 
 $(BIN)/$(EXECUTABLE): $(SRC)/*.c
+	mkdir -p bin
 	$(CXX) $(CXX_FLAGS) -I$(INCLUDE) $^ -o $@ $(LIBRARIES)
 
 clean:
