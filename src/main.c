@@ -18,7 +18,7 @@ void fill_cell_name(int cell_id, char* cell_st){
 }
 
 int main(int argc, char *argv[]){
-    int rec = 2;
+    int rec = 3;
     if(argc > 1){
         rec = atoi(argv[1]);
     }
@@ -27,19 +27,12 @@ int main(int argc, char *argv[]){
     copy_board(ib, &b);
     while(true){
         struct board_result br = minimax(&b, true, rec);
-        //printf("\nFinal board\n\n");
-        //print_board(br.eb->b);
         printf("Evaluation: %d\n", br.eb->evaluation);
-        //struct board old_b = b;
         if(rec > 0){
             copy_board(&br.previous.arr[rec-1], &b);
         }else{
             copy_board(br.eb->b, &b);
         }
-        //for(int i = 0; i < rec; i++){
-        //    printf("\nPreboard %d\n\n", i);
-        //    print_board(&br.previous[i], true);
-        //}
         if(rec > 0){
             printf("\nNext move\n\n");
             print_board(&br.previous.arr[rec-1], true);
@@ -62,13 +55,30 @@ int main(int argc, char *argv[]){
         int from, to;
         char from_st[4], to_st[4];
         scanf("%s %s", from_st, to_st);
-        from = get_cell_id(from_st);
-        to = get_cell_id(to_st);
-        printf("moving from %d to %d\n", from, to);
-        move_piece(&b, from, to);
-        printf("Moved board:\n\n");
-        print_board(&b, true);
-        printf("\n");
+        if(from_st[0]=='r'){
+            int times_back = from_st[1] - '0';
+            int same_pieces_size = b.prev_boards.same_pieces->size;
+            struct board* to_copy;
+            if(same_pieces_size < times_back){
+                times_back -= same_pieces_size;
+                int ignore_size = b.prev_boards.ignore->size;
+                to_copy = (struct board*) arraylist_get(b.prev_boards.ignore, ignore_size - times_back);
+            }else{
+                to_copy = (struct board*) arraylist_get(b.prev_boards.same_pieces, same_pieces_size - times_back);
+            }
+            copy_board(to_copy, &b);
+            print_board(to_copy, true);
+            printf("\nReturned to:\n\n");
+            print_board(&b, true);
+        }else{
+            from = get_cell_id(from_st);
+            to = get_cell_id(to_st);
+            printf("moving from %d to %d\n", from, to);
+            move_piece(&b, from, to);
+            printf("Moved board:\n\n");
+            print_board(&b, true);
+            printf("\n");
+        }
     }
     return 0;
 }

@@ -908,7 +908,7 @@ int evaluate(struct board* b){
             continue;
         }
         int iptype = (int)ptype;
-        int subpoints = piece_points[iptype-1];
+        int subpoints = piece_points[iptype-1] * PIECE_VAL_FACTOR;
         int *piece_sq;
         switch(iptype){
             case 1:
