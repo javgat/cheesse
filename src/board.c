@@ -540,23 +540,29 @@ bool is_in_check(struct board* b, int cell){
     for(int i = 0; i < straigths.len; i++){
         int pos = cell+straigths.arr[i];
         if((b->piece[pos] == rook || b->piece[pos] == queen) && b->is_white[pos] != is_white){
+            free(straigths.arr);
             return true;
         }
     }
+    free(straigths.arr);
     struct intarray diagonals = possible_bishop_moves(b, cell);
     for(int i = 0; i < diagonals.len; i++){
         int pos = cell+diagonals.arr[i];
         if((b->piece[pos] == bishop || b->piece[pos] == queen) && b->is_white[pos] != is_white){
+            free(diagonals.arr);
             return true;
         }
     }
+    free(diagonals.arr);
     struct intarray knights = possible_knight_moves(b, cell);
     for(int i = 0; i < knights.len; i++){
         int pos = cell+knights.arr[i];
         if(b->piece[pos] == knight && b->is_white[pos] != is_white){
+            free(knights.arr);
             return true;
         }
     }
+    free(knights.arr);
     int multiplier = 1;
     int pawn_eats[] = {7, 9};
     if(!is_white){
@@ -1018,7 +1024,7 @@ struct eval_board* get_dead_king_eval_board(struct board* b, bool white){
     return eb;
 }
 
-struct eval_board_array get_evaluated_potential_boards(struct board* b, bool white){
+struct eval_board_array get_evaluated_potential_boards(struct board* b, bool white, struct minmax_settings mms){
     if(is_king_dead(b, white)){
         struct eval_board* eb = get_dead_king_eval_board(b, white);
         struct eval_board_array reteba = (struct eval_board_array) {eb, 1};
@@ -1026,6 +1032,7 @@ struct eval_board_array get_evaluated_potential_boards(struct board* b, bool whi
     }
     struct boardarray ba = get_potential_boards_board(b, white);
     struct eval_board* evs = (struct eval_board*) malloc(ba.len * sizeof(struct eval_board));
+    int ebalen = ba.len;
     for(int i = 0; i<ba.len; i++){
 #ifndef IGNORE_PREV_BOARDS
         int reps = count_repetitions(b);
@@ -1038,8 +1045,27 @@ struct eval_board_array get_evaluated_potential_boards(struct board* b, bool whi
             int eval = evaluate(&ba.arr[i]);
             fill_eval_board(&evs[i], &(ba.arr[i]), eval, false);
         }
+        if(!mms.first_child && mms.prune_alphabeta){
+            int eval_should_bigger = mms.alphabeta;
+            int eval_smaller = evs[i].evaluation;
+            if(!white){
+                int temp = eval_smaller;
+                eval_smaller = eval_should_bigger;
+                eval_should_bigger = temp;
+            }
+            if(eval_should_bigger < eval_smaller){
+                //prune
+                struct eval_board* old_evs = evs;
+                evs = (struct eval_board*) malloc(sizeof(struct eval_board));
+                fill_eval_board(evs, old_evs[i].b, old_evs[i].evaluation, old_evs[i].draw);
+                struct eval_board_array deleva = (struct eval_board_array) {old_evs, i+1};
+                destroy_eval_board_array(&deleva);
+                ebalen = 1;
+                break;
+            }
+        }
     }
-    struct eval_board_array ret = (struct eval_board_array) {evs, ba.len};
+    struct eval_board_array ret = (struct eval_board_array) {evs, ebalen};
     destroy_boardarray(&ba);
     if(ret.len == 0){
         struct eval_board* draw_evs = new_eval_board_values(b, 0, true);
@@ -1048,7 +1074,7 @@ struct eval_board_array get_evaluated_potential_boards(struct board* b, bool whi
     return ret;
 }
 
-struct board_result minmax_board(struct board* b, bool white, int depth, int orig_depth){
+struct board_result minmax_board(struct board* b, bool white, int depth, int orig_depth, struct minmax_settings mms){
     if(is_king_dead(b, white)){
         struct eval_board* eb = get_dead_king_eval_board(b, white);
         struct board *prev = (struct board*) malloc(sizeof(struct board) * orig_depth);
@@ -1059,7 +1085,7 @@ struct board_result minmax_board(struct board* b, bool white, int depth, int ori
         return ret;
     }
     if(depth == 0){
-        struct eval_board_array eba = get_evaluated_potential_boards(b, white);
+        struct eval_board_array eba = get_evaluated_potential_boards(b, white, mms);
         if(eba.len == 0){
             struct board_result empty = (struct board_result){NULL, NULL};
             return empty;
@@ -1093,9 +1119,16 @@ struct board_result minmax_board(struct board* b, bool white, int depth, int ori
     struct boardarray ba = get_potential_boards_board(b, white);
     struct board_result max_br = (struct board_result) {NULL, NULL};
     int inited = 0;
+    bool pruning = false;
+    struct minmax_settings child_mms = {true, mms.prune_alphabeta, 0};
     for(int i = 0; i < ba.len; i++){
-        struct board_result br = minmax_board(&(ba.arr[i]), !white, depth-1, orig_depth);
+        struct board_result br = minmax_board(&(ba.arr[i]), !white, depth-1, orig_depth, child_mms);
         if(br.eb != NULL){
+            if(pruning){
+                destroy_boardarray(&br.previous);
+                destroy_eval_board(br.eb);
+                continue;
+            }
             int multiplier = -1;
             if(!white){
                 multiplier = 1;
@@ -1105,6 +1138,27 @@ struct board_result minmax_board(struct board* b, bool white, int depth, int ori
                 br.eb->evaluation += multiplier*death_late_priority;
             }
             int eval_should_bigger, eval_smaller;
+            if(mms.prune_alphabeta && !mms.first_child){
+                eval_should_bigger = mms.alphabeta;
+                eval_smaller = br.eb->evaluation;
+                if(!white){
+                    int temp = eval_smaller;
+                    eval_smaller = eval_should_bigger;
+                    eval_should_bigger = temp;
+                }
+                if(eval_should_bigger < eval_smaller){
+                    if(inited){
+                        destroy_boardarray(&max_br.previous);
+                        destroy_eval_board(max_br.eb);
+                    }
+                    pruning = true;
+                    max_br = br;
+                    copy_board(&ba.arr[i], &max_br.previous.arr[depth-1]);
+                }
+                if(pruning){
+                    continue;
+                }
+            }
             if(inited){
                 eval_should_bigger = max_br.eb->evaluation;
                 eval_smaller = br.eb->evaluation;
@@ -1121,6 +1175,8 @@ struct board_result minmax_board(struct board* b, bool white, int depth, int ori
                 }
                 inited = 1;
                 max_br = br;
+                child_mms.first_child = false;
+                child_mms.alphabeta = max_br.eb->evaluation;
                 copy_board(&ba.arr[i], &max_br.previous.arr[depth-1]);
             }else{
                 destroy_boardarray(&br.previous);
@@ -1144,7 +1200,8 @@ struct board_result minmax_board(struct board* b, bool white, int depth, int ori
     return max_br;
 }
 
-struct board_result minimax(struct board* b, bool white, int depth){
-    struct board_result br = minmax_board(b, white, depth, depth);
+struct board_result minimax(struct board* b, bool white, int depth, bool alphabeta_prune){
+    struct minmax_settings mms = {true, alphabeta_prune, 0};
+    struct board_result br = minmax_board(b, white, depth, depth, mms);
     return br;
 }

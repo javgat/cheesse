@@ -20,17 +20,28 @@ void fill_cell_name(int cell_id, char* cell_st){
 int main(int argc, char *argv[]){
     int rec = 3;
     bool is_white = true;
+    bool prune = true;
     if(argc > 1){
         is_white = (argv[1][0] == 'w');
     }
     if(argc > 2){
         rec = atoi(argv[2]);
     }
+    if(argc > 3){
+        int pruneint = atoi(argv[3]);
+        if(!pruneint){
+            prune = false;
+        }
+    }
     char* color_st = "black";
     if(is_white){
         color_st = "white";
     }
-    printf("Playing as %s, recursion level %d.\n\n", color_st, rec);
+    char* prune_st = "";
+    if(prune){
+        prune_st = " Performing alphabeta pruning.";
+    }
+    printf("Playing as %s, recursion level %d.%s\n\n", color_st, rec, prune_st);
     struct board* b = new_board_default();
     char move_from_st[3] = "";
     char move_to_st[3] = "";
@@ -54,7 +65,7 @@ int main(int argc, char *argv[]){
         printf("\n");
     }
     while(true){
-        struct board_result br = minimax(b, is_white, rec);
+        struct board_result br = minimax(b, is_white, rec, prune);
         printf("Evaluation: %d\n", br.eb->evaluation);
         if(rec > 0){
             b = new_board_copy(&br.previous.arr[rec-1]);

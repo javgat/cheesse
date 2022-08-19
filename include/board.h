@@ -128,9 +128,15 @@ int evaluate(struct board* b);
 
 bool is_king_dead(struct board* b, bool white);
 
-struct eval_board_array get_evaluated_potential_boards(struct board* b, bool white);
+struct minmax_settings{
+    bool first_child;
+    bool prune_alphabeta;
+    int alphabeta;
+};
 
-struct board_result minmax_board(struct board* b, bool white, int depth, int orig_depth);
+struct eval_board_array get_evaluated_potential_boards(struct board* b, bool white, struct minmax_settings mms);
 
-struct board_result minimax(struct board* b, bool white, int depth);
+struct board_result minmax_board(struct board* b, bool white, int depth, int orig_depth, struct minmax_settings mms);
+
+struct board_result minimax(struct board* b, bool white, int depth, bool alphabeta_prune);
 #endif
