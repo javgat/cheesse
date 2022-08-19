@@ -6,7 +6,8 @@
 #include "board.h"
 
 void copy_board(struct board* src, struct board* dst){
-    *dst = *src;
+    //*dst = *src;
+    memcpy(dst, src, sizeof(struct board));
 #ifndef IGNORE_PREV_BOARDS
     dst->prev_boards.ignore = arraylist_clone(src->prev_boards.ignore);
     dst->prev_boards.same_pieces = arraylist_clone(src->prev_boards.same_pieces);
@@ -533,6 +534,43 @@ struct intarray possible_queen_moves(struct board* b, int cell){
     return returnable;
 }
 
+bool is_in_check(struct board* b, int cell){
+    int is_white = b->is_white[cell];
+    struct intarray straigths = possible_rook_moves(b, cell);
+    for(int i = 0; i < straigths.len; i++){
+        int pos = cell+straigths.arr[i];
+        if((b->piece[pos] == rook || b->piece[pos] == queen) && b->is_white[pos] != is_white){
+            return true;
+        }
+    }
+    struct intarray diagonals = possible_bishop_moves(b, cell);
+    for(int i = 0; i < diagonals.len; i++){
+        int pos = cell+diagonals.arr[i];
+        if((b->piece[pos] == bishop || b->piece[pos] == queen) && b->is_white[pos] != is_white){
+            return true;
+        }
+    }
+    struct intarray knights = possible_knight_moves(b, cell);
+    for(int i = 0; i < knights.len; i++){
+        int pos = cell+knights.arr[i];
+        if(b->piece[pos] == knight && b->is_white[pos] != is_white){
+            return true;
+        }
+    }
+    int multiplier = 1;
+    int pawn_eats[] = {7, 9};
+    if(!is_white){
+        multiplier = -1;
+    }
+    for(int i = 0; i < 2; i++){
+        int pos = cell + (pawn_eats[i]*multiplier);
+        if(pos < 64 && pos >= 0 && b->piece[pos] == pawn && b->is_white[pos] != is_white){
+            return true;
+        }
+    }
+    return false;
+}
+
 // if castling the move should move the rook
 struct intarray possible_king_moves(struct board* b, int cell){
     int is_white = b->is_white[cell];
@@ -560,7 +598,8 @@ struct intarray possible_king_moves(struct board* b, int cell){
         possible_moves[6] = 0;
         possible_moves[7] = 0;
     }
-    if(!pm->moved_king){
+    bool in_check = is_in_check(b, cell);
+    if(!pm->moved_king && !in_check){
         int can_castle_near = 0;
         if(!pm->moved_rook_near){
             if(is_white){
@@ -728,6 +767,24 @@ void move_piece(struct board* b, int prev_position, int new_position){
     }
 }
 
+void move_piece_save_history(struct board* old_b, struct board* b, int prev_position, int new_position){
+#ifndef IGNORE_PREV_BOARDS
+    bool has_killed = false;
+    if(b->piece[new_position] != none){
+        has_killed = true;
+    }
+#endif
+    move_piece(b, prev_position, new_position);
+#ifndef IGNORE_PREV_BOARDS
+    if(has_killed){
+        for(int j = b->prev_boards.same_pieces->size; j > 0; j--){
+            arraylist_add(b->prev_boards.ignore, arraylist_pop(b->prev_boards.same_pieces));
+        }
+    }
+    arraylist_add(b->prev_boards.same_pieces, (void*) old_b);
+#endif
+}
+
 void apply_promotion(struct board* b, bool is_white, enum board_piece piece_type){
     int base = 0;
     if(is_white){
@@ -797,21 +854,7 @@ struct boardarray get_potential_boards_moving_piece(struct board* b, int cell){
             }
         }
         int new_position = cell + moves[i];
-#ifndef IGNORE_PREV_BOARDS
-        bool has_killed = false;
-        if(nb->piece[new_position] != none){
-            has_killed = true;
-        }
-#endif
-        move_piece(nb, cell, new_position);
-#ifndef IGNORE_PREV_BOARDS
-        if(has_killed){
-            for(int j = nb->prev_boards.same_pieces->size; j > 0; j--){
-                arraylist_add(nb->prev_boards.ignore, arraylist_pop(nb->prev_boards.same_pieces));
-            }
-        }
-        arraylist_add(nb->prev_boards.same_pieces, (void*) b);
-#endif
+        move_piece_save_history(b, nb, cell, new_position);
         if(ptype == pawn && (new_position <= 7 || new_position >= 56)){ // promotion
             copy_board(nb, &boards[board_pos]);
             struct board* nb2 = &(boards[board_pos]);
@@ -1102,5 +1145,6 @@ struct board_result minmax_board(struct board* b, bool white, int depth, int ori
 }
 
 struct board_result minimax(struct board* b, bool white, int depth){
-    return minmax_board(b, white, depth, depth);
+    struct board_result br = minmax_board(b, white, depth, depth);
+    return br;
 }

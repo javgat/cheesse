@@ -19,65 +19,103 @@ void fill_cell_name(int cell_id, char* cell_st){
 
 int main(int argc, char *argv[]){
     int rec = 3;
+    bool is_white = true;
     if(argc > 1){
-        rec = atoi(argv[1]);
+        is_white = (argv[1][0] == 'w');
     }
-    struct board* ib = new_board_default();
-    struct board b;
-    copy_board(ib, &b);
+    if(argc > 2){
+        rec = atoi(argv[2]);
+    }
+    char* color_st = "black";
+    if(is_white){
+        color_st = "white";
+    }
+    printf("Playing as %s, recursion level %d.\n\n", color_st, rec);
+    struct board* b = new_board_default();
+    char move_from_st[3] = "";
+    char move_to_st[3] = "";
+    int from, to;
+    char from_st[4], to_st[4];
+    char buffer[40];
+    if(!is_white){
+        printf("Opponent's next move: ");
+        fgets(buffer, 40, stdin);
+        strncpy(from_st, buffer, 2);
+        from_st[2] = '\0';
+        strncpy(to_st, &buffer[3], 2);
+        to_st[2] = '\0';
+        from = get_cell_id(from_st);
+        to = get_cell_id(to_st);
+        printf("moving from %d to %d\n", from, to);
+        struct board* old_b = new_board_copy(b);
+        move_piece_save_history(old_b, b, from, to);
+        printf("Moved board:\n\n");
+        print_board(b, is_white);
+        printf("\n");
+    }
     while(true){
-        struct board_result br = minimax(&b, true, rec);
+        struct board_result br = minimax(b, is_white, rec);
         printf("Evaluation: %d\n", br.eb->evaluation);
         if(rec > 0){
-            copy_board(&br.previous.arr[rec-1], &b);
+            b = new_board_copy(&br.previous.arr[rec-1]);
         }else{
-            copy_board(br.eb->b, &b);
+            b = new_board_copy(br.eb->b);
         }
         if(rec > 0){
             printf("\nNext move\n\n");
-            print_board(&br.previous.arr[rec-1], true);
+            print_board(&br.previous.arr[rec-1], is_white);
         }
         if(br.eb->draw){
             printf("\nDRAW\n");
             break;
         }
-        char move_from_st[3] = "";
-        char move_to_st[3] = "";
-        fill_cell_name(b.last_move[0], move_from_st);
-        fill_cell_name(b.last_move[1], move_to_st);
+        fill_cell_name(b->last_move[0], move_from_st);
+        fill_cell_name(b->last_move[1], move_to_st);
         printf("%s %s\n", move_from_st, move_to_st);fflush(stdout);
         destroy_boardarray(&br.previous);
         destroy_eval_board(br.eb);
-        if(rec > 0){
-            //printf("\nNext move:\n\n");
-            //print_board(&b);
-        }
-        int from, to;
-        char from_st[4], to_st[4];
-        scanf("%s %s", from_st, to_st);
-        if(from_st[0]=='r'){
-            int times_back = from_st[1] - '0';
-            int same_pieces_size = b.prev_boards.same_pieces->size;
-            struct board* to_copy;
-            if(same_pieces_size < times_back){
-                times_back -= same_pieces_size;
-                int ignore_size = b.prev_boards.ignore->size;
-                to_copy = (struct board*) arraylist_get(b.prev_boards.ignore, ignore_size - times_back);
+        bool input_move = false;
+        while(!input_move){
+            printf("Opponent's next move: ");
+            fgets(buffer, 40, stdin);
+            if(buffer[0]=='r'){// rewind
+                int times_back = ((buffer[1] - '0'));
+                int same_pieces_size = b->prev_boards.same_pieces->size;
+                struct board* to_copy;
+                if(same_pieces_size < times_back){
+                    times_back -= same_pieces_size;
+                    int ignore_size = b->prev_boards.ignore->size;
+                    to_copy = (struct board*) arraylist_get(b->prev_boards.ignore, ignore_size - times_back);
+                }else{
+                    to_copy = (struct board*) arraylist_get(b->prev_boards.same_pieces, same_pieces_size - times_back);
+                }
+                b = new_board_copy(to_copy);
+                printf("\nReturned to:\n\n");
+                print_board(b, is_white);
+            }else if(buffer[0]=='x'){// expand
+                for(int i = br.previous.len; i > 0; i--){
+                    printf("\nStep %d\n\n", br.previous.len-i+1);
+                    print_board(&br.previous.arr[i-1], is_white);
+                }
             }else{
-                to_copy = (struct board*) arraylist_get(b.prev_boards.same_pieces, same_pieces_size - times_back);
+                if(strlen(buffer) < 6){
+                    printf("Error in input\n");
+                    continue;
+                }
+                input_move = true;
+                strncpy(from_st, buffer, 2);
+                from_st[2] = '\0';
+                strncpy(to_st, &buffer[3], 2);
+                to_st[2] = '\0';
+                from = get_cell_id(from_st);
+                to = get_cell_id(to_st);
+                printf("moving from %d to %d\n", from, to);
+                struct board* old_b = new_board_copy(b);
+                move_piece_save_history(old_b, b, from, to);
+                printf("Moved board:\n\n");
+                print_board(b, is_white);
+                printf("\n");
             }
-            copy_board(to_copy, &b);
-            print_board(to_copy, true);
-            printf("\nReturned to:\n\n");
-            print_board(&b, true);
-        }else{
-            from = get_cell_id(from_st);
-            to = get_cell_id(to_st);
-            printf("moving from %d to %d\n", from, to);
-            move_piece(&b, from, to);
-            printf("Moved board:\n\n");
-            print_board(&b, true);
-            printf("\n");
         }
     }
     return 0;

@@ -35,8 +35,8 @@ clean:
 # libs
 libs: arraylist
 
-arraylist: $(LIBRARIES)/arraylist/arraylist.c
-	cp $(LIBRARIES)/arraylist/arraylist.h $(INCLUDE)
+arraylist: $(LIB)/arraylist/arraylist.c
+	cp $(LIB)/arraylist/arraylist.h $(INCLUDE)
 	$(CXX) $(OBJ_FLAGS) -I$(INCLUDE) $(LIB)/arraylist/arraylist.c -o arraylist.o
-	ar -rc $(LIBRARIES)/libarraylist.a arraylist.o
+	ar -rc $(LIB)/libarraylist.a arraylist.o
 	rm -f arraylist.o

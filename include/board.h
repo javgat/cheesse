@@ -84,6 +84,8 @@ void kill_piece(struct board* b, int cell);
 
 void move_piece(struct board* b, int prev_position, int new_position);
 
+void move_piece_save_history(struct board* old_b, struct board* b, int prev_position, int new_position);
+
 void apply_promotion(struct board* b, bool is_white, enum board_piece piece_type);
 
 #ifndef IGNORE_PREV_BOARDS
