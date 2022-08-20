@@ -30,3 +30,12 @@ char piece_to_char(enum board_piece type, bool white){
     }
     return translation;
 }
+
+char* piece_to_unicode(enum board_piece type, bool white){
+    char* piece_unicodes[] = {"·", "♟", "♞", "♝", "♜", "♛", "♚", "♙", "♘", "♗", "♖", "♕", "♔"};
+    int index = (int)type;
+    if(!white && index != 0){
+        index += 6;
+    }
+    return piece_unicodes[index];
+}

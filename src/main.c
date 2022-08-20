@@ -82,12 +82,12 @@ int main(int argc, char *argv[]){
         }
         fill_cell_name(b->last_move[0], move_from_st);
         fill_cell_name(b->last_move[1], move_to_st);
-        printf("%s %s\n", move_from_st, move_to_st);fflush(stdout);
+        printf("My move: %s%s\n", move_from_st, move_to_st);fflush(stdout);
         destroy_boardarray(&br.previous);
         destroy_eval_board(br.eb);
         bool input_move = false;
         while(!input_move){
-            printf("Opponent's next move: ");
+            printf("Your move: ");
             fgets(buffer, 40, stdin);
             if(buffer[0]=='r'){// rewind
                 int times_back = ((buffer[1] - '0'));
@@ -109,17 +109,21 @@ int main(int argc, char *argv[]){
                     print_board(&br.previous.arr[i-1], is_white);
                 }
             }else{
-                if(strlen(buffer) < 6){
-                    printf("Error in input\n");
+                if(strlen(buffer) < 5){
+                    printf("Error in input, it should be like g2g3\n");
                     continue;
                 }
                 input_move = true;
                 strncpy(from_st, buffer, 2);
                 from_st[2] = '\0';
-                strncpy(to_st, &buffer[3], 2);
+                strncpy(to_st, &buffer[2], 2);
                 to_st[2] = '\0';
                 from = get_cell_id(from_st);
                 to = get_cell_id(to_st);
+                if(from > 63 || from < 0 || to > 63 || from < 0){
+                    printf("Error in input, it should be like g2g3\n");
+                    continue;
+                }
                 printf("moving from %d to %d\n", from, to);
                 struct board* old_b = new_board_copy(b);
                 move_piece_save_history(old_b, b, from, to);

@@ -13,4 +13,6 @@ enum board_piece{
 };
 
 char piece_to_char(enum board_piece type, bool white);
+
+char* piece_to_unicode(enum board_piece type, bool white);
 #endif
