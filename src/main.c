@@ -49,18 +49,17 @@ int main(int argc, char *argv[]){
     char from_st[4], to_st[4];
     char buffer[40];
     if(!is_white){
-        printf("Opponent's next move: ");
+        printf("Your move: ");
         fgets(buffer, 40, stdin);
         strncpy(from_st, buffer, 2);
         from_st[2] = '\0';
-        strncpy(to_st, &buffer[3], 2);
+        strncpy(to_st, &buffer[2], 2);
         to_st[2] = '\0';
         from = get_cell_id(from_st);
         to = get_cell_id(to_st);
-        printf("moving from %d to %d\n", from, to);
         struct board* old_b = new_board_copy(b);
         move_piece_save_history(old_b, b, from, to);
-        printf("Moved board:\n\n");
+        printf("\n\tMoved board:\n\n");
         print_board(b, is_white);
         printf("\n");
     }
@@ -101,7 +100,7 @@ int main(int argc, char *argv[]){
                     to_copy = (struct board*) arraylist_get(b->prev_boards.same_pieces, same_pieces_size - times_back);
                 }
                 b = new_board_copy(to_copy);
-                printf("\nReturned to:\n\n");
+                printf("\n\tReturned to:\n\n");
                 print_board(b, is_white);
             }else if(buffer[0]=='x'){// expand
                 for(int i = br.previous.len; i > 0; i--){
@@ -113,7 +112,6 @@ int main(int argc, char *argv[]){
                     printf("Error in input, it should be like g2g3\n");
                     continue;
                 }
-                input_move = true;
                 strncpy(from_st, buffer, 2);
                 from_st[2] = '\0';
                 strncpy(to_st, &buffer[2], 2);
@@ -124,10 +122,10 @@ int main(int argc, char *argv[]){
                     printf("Error in input, it should be like g2g3\n");
                     continue;
                 }
-                printf("moving from %d to %d\n", from, to);
+                input_move = true;
                 struct board* old_b = new_board_copy(b);
                 move_piece_save_history(old_b, b, from, to);
-                printf("Moved board:\n\n");
+                printf("\n\tMoved board:\n\n");
                 print_board(b, is_white);
                 printf("\n");
             }

@@ -73,11 +73,11 @@ struct board* new_board_copy(struct board* src){
 void print_board(struct board* b, bool white_on_top){
     for(int i = 0; i<64; i++){
         int index = i;
-        if(i%8 == 0){
-            printf("  %d ", 1+(63-index)/8);
-        }
         if(white_on_top){
             index = 63 - i;
+        }
+        if(i%8 == 0){
+            printf("  %d ", 1+index/8);
         }
         char* trans = piece_to_unicode(b->piece[index], b->is_white[index]);
         printf("%s ", trans);
@@ -86,8 +86,14 @@ void print_board(struct board* b, bool white_on_top){
         }
     }
     printf("    ");
-    for(char c = 'a'; c <= 'h'; c++){
-        printf("%c ", c);
+    if(!white_on_top){
+        for(char c = 'h'; c >= 'a'; c--){
+            printf("%c ", c);
+        }
+    }else{
+        for(char c = 'a'; c <= 'h'; c++){
+            printf("%c ", c);
+        }
     }
     printf("\n");
 }
