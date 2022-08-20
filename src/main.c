@@ -123,8 +123,35 @@ int main(int argc, char *argv[]){
                     continue;
                 }
                 input_move = true;
+                bool promoting = (to < 8 || to > 55) && b->piece[from] == pawn;
                 struct board* old_b = new_board_copy(b);
                 move_piece_save_history(old_b, b, from, to);
+                while(promoting){
+                    printf("Pawn must promote. Which piece? Queen(q), Rook(r), Bishop(b) or Knight(n): ");
+                    char buffer2[40];
+                    fgets(buffer2, 40, stdin);
+                    switch(buffer2[0]){
+                        case 'q':
+                            apply_promotion(b, !is_white, queen);
+                            promoting = false;
+                            break;
+                        case 'r':
+                            apply_promotion(b, !is_white, rook);
+                            promoting = false;
+                            break;
+                        case 'b':
+                            apply_promotion(b, !is_white, bishop);
+                            promoting = false;
+                            break;
+                        case 'n':
+                            apply_promotion(b, !is_white, knight);
+                            promoting = false;
+                            break;
+                        default:
+                            printf("Error inputing the promotion. Try again.\n");
+                            break;
+                    }
+                }
                 printf("\n\tMoved board:\n\n");
                 print_board(b, is_white);
                 printf("\n");
