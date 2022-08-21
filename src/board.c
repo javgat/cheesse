@@ -1038,7 +1038,7 @@ struct eval_board* get_dead_king_eval_board(struct board* b, bool white){
     return eb;
 }
 
-struct eval_board_array get_evaluated_potential_boards(struct board* b, bool white, struct minmax_settings mms){
+struct eval_board_array get_evaluated_potential_boards(struct board* b, bool white, struct minimax_settings mms){
     if(is_king_dead(b, white)){
         struct eval_board* eb = get_dead_king_eval_board(b, white);
         struct eval_board_array reteba = (struct eval_board_array) {eb, 1};
@@ -1059,10 +1059,14 @@ struct eval_board_array get_evaluated_potential_boards(struct board* b, bool whi
             int eval = evaluate(&ba.arr[i]);
             fill_eval_board(&evs[i], &(ba.arr[i]), eval, false);
         }
-        if(!mms.first_child && mms.prune_alphabeta){
+        if(!mms.first_child && mms.pruning != no_pruning){
             int eval_should_bigger = mms.alphabeta;
             int eval_smaller = evs[i].evaluation;
+            bool invert_comparison = false;
             if(!white){
+                invert_comparison = true;
+            }
+            if(invert_comparison){
                 int temp = eval_smaller;
                 eval_smaller = eval_should_bigger;
                 eval_should_bigger = temp;
@@ -1088,7 +1092,7 @@ struct eval_board_array get_evaluated_potential_boards(struct board* b, bool whi
     return ret;
 }
 
-struct board_result minmax_board(struct board* b, bool white, int depth, int orig_depth, struct minmax_settings mms){
+struct board_result minimax_board(struct board* b, bool white, int depth, int orig_depth, struct minimax_settings mms){
     if(is_king_dead(b, white)){
         struct eval_board* eb = get_dead_king_eval_board(b, white);
         struct board *prev = (struct board*) malloc(sizeof(struct board) * orig_depth);
@@ -1134,9 +1138,13 @@ struct board_result minmax_board(struct board* b, bool white, int depth, int ori
     struct board_result max_br = (struct board_result) {NULL, NULL};
     int inited = 0;
     bool pruning = false;
-    struct minmax_settings child_mms = {true, mms.prune_alphabeta, 0};
+    struct minimax_settings child_mms = {true, mms.pruning, 0};
+    if(mms.pruning == bns_pruning){
+        child_mms.alphabeta = mms.alphabeta;
+        child_mms.first_child = mms.first_child;
+    }
     for(int i = 0; i < ba.len; i++){
-        struct board_result br = minmax_board(&(ba.arr[i]), !white, depth-1, orig_depth, child_mms);
+        struct board_result br = minimax_board(&(ba.arr[i]), !white, depth-1, orig_depth, child_mms);
         if(br.eb != NULL){
             if(pruning){
                 destroy_boardarray(&br.previous);
@@ -1152,10 +1160,14 @@ struct board_result minmax_board(struct board* b, bool white, int depth, int ori
                 br.eb->evaluation += multiplier*death_late_priority;
             }
             int eval_should_bigger, eval_smaller;
-            if(mms.prune_alphabeta && !mms.first_child){
+            if(mms.pruning != no_pruning && !mms.first_child){
                 eval_should_bigger = mms.alphabeta;
                 eval_smaller = br.eb->evaluation;
+                bool invert_comparison = false;
                 if(!white){
+                    invert_comparison = true;
+                }
+                if(invert_comparison){
                     int temp = eval_smaller;
                     eval_smaller = eval_should_bigger;
                     eval_should_bigger = temp;
@@ -1215,7 +1227,85 @@ struct board_result minmax_board(struct board* b, bool white, int depth, int ori
 }
 
 struct board_result minimax(struct board* b, bool white, int depth, bool alphabeta_prune){
-    struct minmax_settings mms = {true, alphabeta_prune, 0};
-    struct board_result br = minmax_board(b, white, depth, depth, mms);
+    enum prune_strat strat = no_pruning;
+    if(alphabeta_prune){
+        strat = alpha_beta;
+    }
+    struct minimax_settings mms = {true, strat, 0};
+    struct board_result br = minimax_board(b, white, depth, depth, mms);
     return br;
+}
+
+int next_guess(int alpha, int beta, int subtree_count){
+    return (int) (alpha + (beta - alpha) * ((subtree_count - 1) / (float)subtree_count));
+}
+
+struct board_result bns(struct board* b, int alpha, int beta, bool white, int depth){
+    struct boardarray ba = get_potential_boards_board(b, white);
+    int subtree_count = ba.len;
+    int better_count = 0;
+    struct board_result best_br;
+    struct board_result max_br;
+    struct minimax_settings mms = {false, bns_pruning, 0};
+    int index = 0;
+    int min = 0;
+    int max = 0;
+    do{
+        if(better_count > 0){
+            destroy_boardarray(&max_br.previous);
+            destroy_eval_board(max_br.eb);
+        }
+        int test = next_guess(alpha, beta, subtree_count);
+        if(!white){
+            test = -test;
+        }
+        mms.alphabeta = test;
+        better_count = 0;
+        bool first = true;
+        for(int i = 0; i < ba.len; i++){
+            best_br = minimax_board(&ba.arr[i], !white, depth-1, depth, mms);
+            if(best_br.eb != NULL){
+                int best_val = best_br.eb->evaluation;
+                if(best_val >= test){
+                    if(first){
+                        min = max = best_val;
+                        first = false;
+                    }else{
+                        if(best_val > max){
+                            max = best_val;
+                        }
+                        if(best_val < min){
+                            min = best_val;
+                        }
+                    }
+                    index = i;
+                    if(better_count > 0){
+                        destroy_boardarray(&max_br.previous);
+                        destroy_eval_board(max_br.eb);
+                    }
+                    better_count++;
+                    max_br = best_br;
+                }else{
+                    destroy_boardarray(&best_br.previous);
+                    destroy_eval_board(best_br.eb);
+                }
+            }
+        }
+        printf("Betterc: %d, alpha: %d, beta: %d, test: %d\n", better_count, alpha, beta, test); fflush(stdout);
+        if(better_count == 0){
+            if(white){
+                alpha -= abs(beta-alpha);
+            }else{
+                beta += abs(beta-alpha);
+            }
+        }else{
+            beta = max-1;
+            alpha = min-1;
+        }
+    }while(!((beta-alpha)<2 || better_count == 1));
+    if(better_count > 0){
+        copy_board(&ba.arr[index], &max_br.previous.arr[depth-1]);
+    }
+    destroy_boardarray(&ba);
+    return max_br;
 }

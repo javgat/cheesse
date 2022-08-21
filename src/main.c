@@ -20,26 +20,35 @@ void fill_cell_name(int cell_id, char* cell_st){
 int main(int argc, char *argv[]){
     int rec = 3;
     bool is_white = true;
-    bool prune = true;
+    enum prune_strat prune = alpha_beta;
     if(argc > 1){
         is_white = (argv[1][0] == 'w');
     }
     if(argc > 2){
-        rec = atoi(argv[2]);
+        int pruneint = atoi(argv[2]);
+        switch(pruneint){
+            case 0:
+                prune = no_pruning;
+                break;
+            case 1:
+                prune = alpha_beta;
+                break;
+            default:
+                prune = bns_pruning;
+        }
     }
     if(argc > 3){
-        int pruneint = atoi(argv[3]);
-        if(!pruneint){
-            prune = false;
-        }
+        rec = atoi(argv[3]);
     }
     char* color_st = "black";
     if(is_white){
         color_st = "white";
     }
     char* prune_st = "";
-    if(prune){
+    if(prune == alpha_beta){
         prune_st = " Performing alphabeta pruning.";
+    }else if(prune == bns_pruning){
+        prune_st = " Performing BNS pruning.";
     }
     printf("Playing as %s, recursion level %d.%s\n\n", color_st, rec, prune_st);
     struct board* b = new_board_default();
@@ -63,8 +72,15 @@ int main(int argc, char *argv[]){
         print_board(b, is_white);
         printf("\n");
     }
+    int last_eval = 0;
     while(true){
-        struct board_result br = minimax(b, is_white, rec, prune);
+        struct board_result br;
+        if(prune == bns_pruning){
+            br = bns(b, last_eval - 100, last_eval + 100, is_white, rec);
+        }else{
+            br = minimax(b, is_white, rec, prune==alpha_beta);
+        }
+        last_eval = br.eb->evaluation;
         printf("Evaluation: %d\n", br.eb->evaluation);
         if(rec > 0){
             b = new_board_copy(&br.previous.arr[rec-1]);
