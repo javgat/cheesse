@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <time.h>
 #include "board.h"
 
 int get_cell_id(char* cell_st){
@@ -73,23 +74,29 @@ int main(int argc, char *argv[]){
         printf("\n");
     }
     int last_eval = 0;
+    struct timespec start, end;
     while(true){
         struct board_result br;
+        clock_gettime(CLOCK_MONOTONIC_RAW, &start);
         if(prune == bns_pruning){
-            br = bns(b, last_eval - 100, last_eval + 100, is_white, rec);
+            br = bns(b, last_eval - 200, last_eval + 200, is_white, rec);
         }else{
             br = minimax(b, is_white, rec, prune==alpha_beta);
         }
+        clock_gettime(CLOCK_MONOTONIC_RAW, &end);
         last_eval = br.eb->evaluation;
-        printf("Evaluation: %d\n", br.eb->evaluation);
         if(rec > 0){
             b = new_board_copy(&br.previous.arr[rec-1]);
         }else{
             b = new_board_copy(br.eb->b);
         }
+        u_int64_t delta_us = (end.tv_sec - start.tv_sec) * 1000 + (end.tv_nsec - start.tv_nsec) / 1000000;
+        printf("Took %lu ms\n", delta_us); 
+        printf("Evaluation: %d. Next move:\n\n", br.eb->evaluation);
         if(rec > 0){
-            printf("\nNext move\n\n");
             print_board(&br.previous.arr[rec-1], is_white);
+        }else{
+            print_board(br.eb->b, is_white);
         }
         if(br.eb->draw){
             printf("\nDRAW\n");
@@ -98,8 +105,6 @@ int main(int argc, char *argv[]){
         fill_cell_name(b->last_move[0], move_from_st);
         fill_cell_name(b->last_move[1], move_to_st);
         printf("My move: %s%s\n", move_from_st, move_to_st);fflush(stdout);
-        destroy_boardarray(&br.previous);
-        destroy_eval_board(br.eb);
         bool input_move = false;
         while(!input_move){
             printf("Your move: ");
@@ -138,6 +143,8 @@ int main(int argc, char *argv[]){
                     printf("Error in input, it should be like g2g3\n");
                     continue;
                 }
+                destroy_boardarray(&br.previous);
+                destroy_eval_board(br.eb);
                 input_move = true;
                 bool promoting = (to < 8 || to > 55) && b->piece[from] == pawn;
                 struct board* old_b = new_board_copy(b);
