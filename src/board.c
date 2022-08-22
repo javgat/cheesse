@@ -1059,7 +1059,7 @@ struct eval_board_array get_evaluated_potential_boards(struct board* b, bool whi
             int eval = evaluate(&ba.arr[i]);
             fill_eval_board(&evs[i], &(ba.arr[i]), eval, false);
         }
-        if(!mms.first_child && mms.pruning != no_pruning){
+        if(mms.pruning != no_pruning && !mms.first_child){
             int eval_should_bigger = mms.alphabeta;
             int eval_smaller = evs[i].evaluation;
             bool invert_comparison = false;
@@ -1071,7 +1071,7 @@ struct eval_board_array get_evaluated_potential_boards(struct board* b, bool whi
                 eval_smaller = eval_should_bigger;
                 eval_should_bigger = temp;
             }
-            if(eval_should_bigger < eval_smaller){
+            if(eval_should_bigger <= eval_smaller){
                 //prune
                 struct eval_board* old_evs = evs;
                 evs = (struct eval_board*) malloc(sizeof(struct eval_board));
@@ -1172,7 +1172,7 @@ struct board_result minimax_board(struct board* b, bool white, int depth, int or
                     eval_smaller = eval_should_bigger;
                     eval_should_bigger = temp;
                 }
-                if(eval_should_bigger < eval_smaller){
+                if(eval_should_bigger <= eval_smaller){
                     if(inited){
                         destroy_boardarray(&max_br.previous);
                         destroy_eval_board(max_br.eb);
@@ -1194,15 +1194,17 @@ struct board_result minimax_board(struct board* b, bool white, int depth, int or
                     eval_should_bigger = temp;
                 }
             }
-            if(!inited || eval_should_bigger < eval_smaller){
+            if(!inited || eval_should_bigger >= eval_smaller){
                 if(inited){
                     destroy_boardarray(&max_br.previous);
                     destroy_eval_board(max_br.eb);
                 }
                 inited = 1;
                 max_br = br;
-                child_mms.first_child = false;
-                child_mms.alphabeta = max_br.eb->evaluation;
+                if(mms.pruning == alpha_beta){
+                    child_mms.alphabeta = max_br.eb->evaluation;
+                    child_mms.first_child = false;
+                }
                 copy_board(&ba.arr[i], &max_br.previous.arr[depth-1]);
             }else{
                 destroy_boardarray(&br.previous);
@@ -1256,9 +1258,6 @@ struct board_result bns(struct board* b, int alpha, int beta, bool white, int de
             destroy_eval_board(max_br.eb);
         }
         int test = next_guess(alpha, beta, subtree_count);
-        if(!white){
-            test = -test;
-        }
         mms.alphabeta = test;
         better_count = 0;
         bool first = true;
@@ -1266,7 +1265,7 @@ struct board_result bns(struct board* b, int alpha, int beta, bool white, int de
             best_br = minimax_board(&ba.arr[i], !white, depth-1, depth, mms);
             if(best_br.eb != NULL){
                 int best_val = best_br.eb->evaluation;
-                if(best_val >= test){
+                if((best_val >= test && white) || (best_val <= test && !white)){
                     if(first){
                         min = max = best_val;
                         first = false;
@@ -1299,8 +1298,24 @@ struct board_result bns(struct board* b, int alpha, int beta, bool white, int de
                 beta += abs(beta-alpha);
             }
         }else{
-            beta = max-1;
-            alpha = min-1;
+            if(beta == alpha){
+                if(white){
+                    alpha--;
+                    beta--;
+               }else{
+                    alpha++;
+                    beta++;
+                }
+            }else if((beta == alpha+1) || ((beta == max+1) && (alpha == min-1))){
+                if(white){
+                    alpha++;
+                }else{
+                    beta--;
+                }
+            }else{
+                beta = max+1;
+                alpha = min-1;
+            }
         }
     }while(!((beta-alpha)<2 || better_count == 1));
     if(better_count > 0){
