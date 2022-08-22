@@ -9,9 +9,8 @@
 #endif
 
 struct previous_moves{
-    bool moved_king;
-    bool moved_rook_near;
-    bool moved_rook_far;
+    bool can_castling_near;
+    bool can_castling_far;
     bool just_two_squared[8];
 };
 

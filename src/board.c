@@ -16,13 +16,11 @@ void copy_board(struct board* src, struct board* dst){
 
 void fill_default_board(struct board* b){
     // prev moves
-    b->black_moves.moved_king = false;
-    b->black_moves.moved_rook_far = false;
-    b->black_moves.moved_rook_near = false;
+    b->black_moves.can_castling_far = true;
+    b->black_moves.can_castling_near = true;
     memset(b->black_moves.just_two_squared, 0, sizeof(b->black_moves.just_two_squared));
-    b->white_moves.moved_king = false;
-    b->white_moves.moved_rook_far = false;
-    b->white_moves.moved_rook_near = false;
+    b->white_moves.can_castling_far = true;
+    b->white_moves.can_castling_near = true;
     memset(b->white_moves.just_two_squared, 0, sizeof(b->white_moves.just_two_squared));
     // squares
     memset(b->is_white, 0, sizeof(b->is_white));
@@ -110,14 +108,12 @@ bool board_are_equal(struct board* b, struct board* o){
             return false;
         }
     }
-    if(b->black_moves.moved_king != o->black_moves.moved_king ||\
-        b->black_moves.moved_rook_far != o->black_moves.moved_rook_far ||\
-        b->black_moves.moved_rook_near != o->black_moves.moved_rook_near){
+    if(b->black_moves.can_castling_far != o->black_moves.can_castling_far ||\
+        b->black_moves.can_castling_near != o->black_moves.can_castling_near){
         return false;
     }
-    if(b->white_moves.moved_king != o->white_moves.moved_king ||\
-        b->white_moves.moved_rook_far != o->white_moves.moved_rook_far ||\
-        b->white_moves.moved_rook_near != o->white_moves.moved_rook_near){
+    if(b->white_moves.can_castling_far != o->white_moves.can_castling_far ||\
+        b->white_moves.can_castling_near != o->white_moves.can_castling_near){
         return false;
     }
     return true;
@@ -619,28 +615,28 @@ struct intarray possible_king_moves(struct board* b, int cell){
         possible_moves[7] = 0;
     }
     bool in_check = is_in_check(b, cell);
-    if(!pm->moved_king && !in_check){
-        int can_castle_near = 0;
-        if(!pm->moved_rook_near){
+    if(!in_check){
+        bool can_castle_near = false;
+        if(pm->can_castling_near){
             if(is_white){
                 if(cell==3 && b->piece[0]==rook && b->is_white[0]==1 && b->piece[1]==none && b->piece[2]==none){
-                    can_castle_near = 1;
+                    can_castle_near = true;
                 }
             }else if(!is_white && cell==59 && b->piece[56]==rook && b->is_white[56]==1 && b->piece[57]==none && b->piece[58]==none){
-                can_castle_near = 1;
+                can_castle_near = true;
             }
         }
         if(!can_castle_near){
             possible_moves[8] = 0;
         }
-        int can_castle_far = 0;
-        if(!pm->moved_rook_far){
+        bool can_castle_far = false;
+        if(pm->can_castling_far){
             if(is_white){
                 if(cell==3 && b->piece[7]==rook && b->is_white[7]==1 && b->piece[6]==none && b->piece[5]==none && b->piece[4]==none){
-                    can_castle_far = 1;
+                    can_castle_far = true;
                 }
             }else if(!is_white && cell==59 && b->piece[63]==rook && b->is_white[63]==1 && b->piece[62]==none && b->piece[61]==none && b->piece[60]==none){
-                can_castle_far = 1;
+                can_castle_far = true;
             }
         }
         if(!can_castle_far){
@@ -708,20 +704,21 @@ void kill_piece(struct board* b, int cell){
         case rook:
             if(is_white){
                 if(cell == 0){
-                    pm->moved_rook_near = true;
+                    pm->can_castling_near = false;
                 }else if(cell == 7){
-                    pm->moved_rook_far = true;
+                    pm->can_castling_near = false;
                 }
             }else{
                 if(cell == 56){
-                    pm->moved_rook_near = true;
+                    pm->can_castling_near = false;
                 }else if(cell == 63){
-                    pm->moved_rook_far = true;
+                    pm->can_castling_near = false;
                 }
             }
             break;
         case king:
-            pm->moved_king = true;
+            pm->can_castling_far = false;
+            pm->can_castling_near = false;
             break;
         default:
             break;
@@ -764,14 +761,15 @@ void move_piece(struct board* b, int prev_position, int new_position){
     b->is_white[new_position] = is_white;
     int move = new_position - prev_position;
     if(b->piece[new_position] == king){ // check castling and if it is, move rook
-        pm->moved_king = true;
+        pm->can_castling_far = false;
+        pm->can_castling_near = false;
         if(move == -2 || move == 2){// castling
             int rook_prev = new_position - 1; // initialized to castling near values
             int rook_new = new_position + 1;
             if(move == -2){ // castling near
-                pm->moved_rook_near = 1;
+                pm->can_castling_near = false;
             }else{ // castling far
-                pm->moved_rook_far = 1;
+                pm->can_castling_far = false;
                 rook_prev = new_position + 2;
                 rook_new = new_position - 1;
             }
@@ -865,12 +863,13 @@ struct boardarray get_potential_boards_moving_piece(struct board* b, int cell){
             pm = &(nb->white_moves);
         }
         if(ptype == king){
-            pm->moved_king = true;
+            pm->can_castling_far = false;
+            pm->can_castling_near = false;
         }else if(ptype == rook){
             if(cell == 0 || cell == 56){
-                pm->moved_rook_near = true;
+                pm->can_castling_near = false;
             }else if(cell == 7 || cell == 63){
-                pm->moved_rook_far = true;
+                pm->can_castling_far = false;
             }
         }
         int new_position = cell + moves[i];
