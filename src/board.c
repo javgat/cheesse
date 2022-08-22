@@ -1067,7 +1067,7 @@ struct eval_board_array get_evaluated_potential_boards(struct board* b, bool whi
                 eval_smaller = eval_should_bigger;
                 eval_should_bigger = temp;
             }
-            if(eval_should_bigger <= eval_smaller){
+            if(eval_should_bigger < eval_smaller){
                 //prune
                 struct eval_board* old_evs = evs;
                 evs = (struct eval_board*) malloc(sizeof(struct eval_board));
@@ -1164,7 +1164,7 @@ struct board_result minimax_board(struct board* b, bool white, int depth, int or
                     eval_smaller = eval_should_bigger;
                     eval_should_bigger = temp;
                 }
-                if(eval_should_bigger <= eval_smaller){
+                if(eval_should_bigger < eval_smaller){
                     if(inited){
                         destroy_boardarray(&max_br.previous);
                         destroy_eval_board(max_br.eb);
@@ -1186,7 +1186,7 @@ struct board_result minimax_board(struct board* b, bool white, int depth, int or
                     eval_should_bigger = temp;
                 }
             }
-            if(!inited || eval_should_bigger <= eval_smaller){
+            if(!inited || eval_should_bigger < eval_smaller){
                 if(inited){
                     destroy_boardarray(&max_br.previous);
                     destroy_eval_board(max_br.eb);
@@ -1234,6 +1234,8 @@ int next_guess(int alpha, int beta, int subtree_count){
     return (int) (alpha + (beta - alpha) * ((subtree_count - 1) / (float)subtree_count));
 }
 
+// The move ends up as the same as with normal minimax, but might have different evaluation
+// Because it is a sibling of the best option, so the next step is correctly chosen.
 struct board_result bns(struct board* b, int alpha, int beta, bool white, int depth){
     struct boardarray ba = get_potential_boards_board(b, white);
     int subtree_count = ba.len;
@@ -1282,7 +1284,7 @@ struct board_result bns(struct board* b, int alpha, int beta, bool white, int de
                 }
             }
         }
-        printf("Betterc: %d, alpha: %d, beta: %d, test: %d\n", better_count, alpha, beta, test); fflush(stdout);
+        //printf("Betterc: %d, alpha: %d, beta: %d, test: %d\n", better_count, alpha, beta, test); fflush(stdout);
         if(better_count == 0){
             if(white){
                 alpha -= abs(beta-alpha);
