@@ -105,8 +105,6 @@ int main(int argc, char *argv[]){
         fill_cell_name(b->last_move[0], move_from_st);
         fill_cell_name(b->last_move[1], move_to_st);
         printf("My move: %s%s\n", move_from_st, move_to_st);fflush(stdout);
-        destroy_boardarray(&br.previous);
-        destroy_eval_board(br.eb);
         bool input_move = false;
         while(!input_move){
             printf("Your move: ");
@@ -145,6 +143,8 @@ int main(int argc, char *argv[]){
                     printf("Error in input, it should be like g2g3\n");
                     continue;
                 }
+                destroy_boardarray(&br.previous);
+                destroy_eval_board(br.eb);
                 input_move = true;
                 bool promoting = (to < 8 || to > 55) && b->piece[from] == pawn;
                 struct board* old_b = new_board_copy(b);

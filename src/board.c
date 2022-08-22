@@ -1062,11 +1062,7 @@ struct eval_board_array get_evaluated_potential_boards(struct board* b, bool whi
         if(mms.pruning != no_pruning && !mms.first_child){
             int eval_should_bigger = mms.alphabeta;
             int eval_smaller = evs[i].evaluation;
-            bool invert_comparison = false;
             if(!white){
-                invert_comparison = true;
-            }
-            if(invert_comparison){
                 int temp = eval_smaller;
                 eval_smaller = eval_should_bigger;
                 eval_should_bigger = temp;
@@ -1117,7 +1113,7 @@ struct board_result minimax_board(struct board* b, bool white, int depth, int or
                 eval_smaller = eval_should_bigger;
                 eval_should_bigger = temp;
             }
-            if(eval_smaller > eval_should_bigger){
+            if(eval_smaller >= eval_should_bigger){
                 eb = &(eba.evs[i]);
             }
         }
@@ -1163,11 +1159,7 @@ struct board_result minimax_board(struct board* b, bool white, int depth, int or
             if(mms.pruning != no_pruning && !mms.first_child){
                 eval_should_bigger = mms.alphabeta;
                 eval_smaller = br.eb->evaluation;
-                bool invert_comparison = false;
                 if(!white){
-                    invert_comparison = true;
-                }
-                if(invert_comparison){
                     int temp = eval_smaller;
                     eval_smaller = eval_should_bigger;
                     eval_should_bigger = temp;
@@ -1194,7 +1186,7 @@ struct board_result minimax_board(struct board* b, bool white, int depth, int or
                     eval_should_bigger = temp;
                 }
             }
-            if(!inited || eval_should_bigger >= eval_smaller){
+            if(!inited || eval_should_bigger <= eval_smaller){
                 if(inited){
                     destroy_boardarray(&max_br.previous);
                     destroy_eval_board(max_br.eb);
