@@ -12,10 +12,15 @@ LIBRARIES   := -larraylist -Llib
 EXECUTABLE  := main
 EXECUTABLE_DEBUG  := debug
 
+IGNORE_PREV_BOARDS_FLAGS := -Wall -O3 -D IGNORE_PREV_BOARDS
+EXECUTABLE_IGNORE := ignore_prev_boards
+
 
 all: $(BIN)/$(EXECUTABLE)
 
 debug: $(BIN)/$(EXECUTABLE_DEBUG)
+
+ignore_prev: $(BIN)/$(EXECUTABLE_IGNORE)
 
 run: clean all
 	clear
@@ -28,6 +33,10 @@ $(BIN)/$(EXECUTABLE): $(SRC)/*.c
 $(BIN)/$(EXECUTABLE_DEBUG): $(SRC)/*.c
 	mkdir -p bin
 	$(CXX) $(DEBUG_FLAGS) -I$(INCLUDE) $^ -o $@ $(LIBRARIES)
+
+$(BIN)/$(EXECUTABLE_IGNORE): $(SRC)/*.c
+	mkdir -p bin
+	$(CXX) $(IGNORE_PREV_BOARDS_FLAGS) -I$(INCLUDE) $^ -o $@ $(LIBRARIES)
 
 clean:
 	-rm $(BIN)/*

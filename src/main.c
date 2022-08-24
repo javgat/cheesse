@@ -110,6 +110,7 @@ int main(int argc, char *argv[]){
             printf("Your move: ");
             fgets(buffer, 40, stdin);
             if(buffer[0]=='r'){// rewind
+#ifndef IGNORE_PREV_BOARDS
                 int times_back = ((buffer[1] - '0'));
                 int same_pieces_size = b->prev_boards.same_pieces->size;
                 struct board* to_copy;
@@ -123,6 +124,7 @@ int main(int argc, char *argv[]){
                 b = new_board_copy(to_copy);
                 printf("\n\tReturned to:\n\n");
                 print_board(b, is_white);
+#endif
             }else if(buffer[0]=='x'){// expand
                 for(int i = br.previous.len; i > 0; i--){
                     printf("\nStep %d\n\n", br.previous.len-i+1);
